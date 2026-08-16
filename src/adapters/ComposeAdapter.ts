@@ -22,7 +22,16 @@ export class ComposeAdapter implements DeployAdapter {
     // A real implementation would checkout `ref` into an isolated worktree
     // first; omitted here since the calling workflow already checks out
     // the right ref before invoking Backline.
-    await exec(`docker compose -f ${this.composeFile} ${envFlag} up -d --build`);
+    const command = `docker compose -f ${this.composeFile} ${envFlag} up -d --build`;
+    console.log(`[ComposeAdapter] running: ${command}`);
+    try {
+      const { stdout, stderr } = await exec(command);
+      console.log(`[ComposeAdapter] stdout:\n${stdout}`);
+      if (stderr) console.log(`[ComposeAdapter] stderr:\n${stderr}`);
+    } catch (err) {
+      console.error(`[ComposeAdapter] docker compose failed:`, err);
+      throw err;
+    }
     return { previewUrl: `http://localhost:${this.previewPort}` };
   }
 

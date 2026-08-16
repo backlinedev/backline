@@ -7,7 +7,7 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/greeting", (req, res) => {
-  res.json({ message: "hello world", version: 2 });
+  res.json({ message: "hello test world", version: 3 });
 });
 
 app.listen(4000, () => console.log("test app on :4000"));

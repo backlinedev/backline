@@ -1,4 +1,3 @@
-"use strict";
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -6,7 +5,7 @@ var __export = (target, all) => {
 };
 
 // src/config/loader.ts
-var import_promises = require("node:fs/promises");
+import { readFile } from "node:fs/promises";
 
 // node_modules/js-yaml/dist/js-yaml.mjs
 function getDefaultExportFromCjs(x) {
@@ -7193,7 +7192,7 @@ ${issues}`);
 async function loadConfigFromFile(path) {
   let raw;
   try {
-    raw = await (0, import_promises.readFile)(path, "utf-8");
+    raw = await readFile(path, "utf-8");
   } catch (err) {
     throw new ConfigError(`Could not read config file at ${path}`, err);
   }
@@ -7201,7 +7200,7 @@ async function loadConfigFromFile(path) {
 }
 
 // src/config/validate.ts
-var import_promises2 = require("node:fs/promises");
+import { access } from "node:fs/promises";
 async function validateConfigSemantics(config, fileExists = defaultFileExists) {
   const problems = [];
   for (const probe of config.probes) {
@@ -7236,7 +7235,7 @@ ${problems.map((p) => `  - ${p}`).join("\n")}`
 }
 async function defaultFileExists(path) {
   try {
-    await (0, import_promises2.access)(path);
+    await access(path);
     return true;
   } catch {
     return false;
@@ -7244,8 +7243,8 @@ async function defaultFileExists(path) {
 }
 
 // src/adapters/ComposeAdapter.ts
-var import_node_child_process = require("node:child_process");
-var import_node_util = require("node:util");
+import { exec as execCb } from "node:child_process";
+import { promisify } from "node:util";
 
 // src/adapters/DeployAdapter.ts
 var DeployTimeoutError = class extends Error {
@@ -7256,7 +7255,7 @@ var DeployTimeoutError = class extends Error {
 };
 
 // src/adapters/ComposeAdapter.ts
-var exec = (0, import_node_util.promisify)(import_node_child_process.exec);
+var exec = promisify(execCb);
 var ComposeAdapter = class {
   constructor(composeFile = "docker-compose.yml", previewPort = 4e3) {
     this.composeFile = composeFile;
@@ -7289,15 +7288,15 @@ function sleep(ms) {
 }
 
 // src/cache/FileCacheStore.ts
-var import_promises3 = require("node:fs/promises");
-var import_node_path = require("node:path");
+import { readFile as readFile2, writeFile, mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
 var FileCacheStore = class {
   constructor(cacheDir = ".backline-cache") {
     this.cacheDir = cacheDir;
   }
   async get(key) {
     try {
-      const raw = await (0, import_promises3.readFile)(this.pathFor(key), "utf-8");
+      const raw = await readFile2(this.pathFor(key), "utf-8");
       return JSON.parse(raw);
     } catch {
       return null;
@@ -7305,12 +7304,12 @@ var FileCacheStore = class {
   }
   async set(key, value) {
     const path = this.pathFor(key);
-    await (0, import_promises3.mkdir)((0, import_node_path.dirname)(path), { recursive: true });
-    await (0, import_promises3.writeFile)(path, JSON.stringify(value, null, 2), "utf-8");
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify(value, null, 2), "utf-8");
   }
   pathFor(key) {
     const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, "_");
-    return (0, import_node_path.join)(this.cacheDir, `${safeKey}.json`);
+    return join(this.cacheDir, `${safeKey}.json`);
   }
 };
 
@@ -7371,7 +7370,7 @@ var ApiProbe = class {
 };
 
 // src/probes/CliProbe.ts
-var import_node_child_process2 = require("node:child_process");
+import { spawn } from "node:child_process";
 var CliProbe = class {
   /**
    * @remarks
@@ -7411,7 +7410,7 @@ var CliProbe = class {
 };
 function runOnce(binary2, args, stdin) {
   return new Promise((resolve, reject) => {
-    const child = (0, import_node_child_process2.spawn)(binary2, args, { timeout: 15e3 });
+    const child = spawn(binary2, args, { timeout: 15e3 });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => stdout += chunk.toString());

@@ -1,0 +1,21 @@
+version: 1
+
+target:
+  base_url: "http://localhost:4000"
+  wait_for:
+    path: /health
+    timeout_seconds: 60
+  adapter: compose
+
+probes:
+  - type: api
+    name: "greeting check"
+    requests:
+      - method: GET
+        path: /health
+      - method: GET
+        path: /greeting
+    diff:
+      against: base_branch
+      ignore_fields: []
+      

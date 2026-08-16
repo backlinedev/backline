@@ -1,3 +1,12 @@
+/**
+ * Wires every component together into the actual run lifecycle.
+ *
+ * @remarks
+ * Contains almost no logic of its own — every interesting decision
+ * lives in the module that owns that concern. Reading this file top
+ * to bottom tells you the whole system's control flow without needing
+ * to read any implementation details underneath it.
+ */
 import type { BacklineConfig } from "./config/schema.js";
 import type { DeployAdapter } from "./adapters/DeployAdapter.js";
 import { resolveProbe } from "./probes/registry.js";
@@ -13,7 +22,6 @@ export interface RunBacklineOptions {
   cache: CacheStore;
   headRef: string;
   baseRef: string;
-  /** If false, skip posting to GitHub — used by the local CLI / dry runs. */
   postComment?: (body: string) => Promise<void>;
 }
 
@@ -22,39 +30,52 @@ export interface RunBacklineResult {
   commentBody: string;
 }
 
-/**
- * The full run lifecycle, matching Section 5 of backline-architecture.md
- * step for step. This function contains almost no logic of its own —
- * every interesting decision lives in the module that owns that
- * concern. Reading this top to bottom should tell you the whole
- * system's control flow without needing to read any implementation
- * details underneath it.
- */
 export async function runBackline(options: RunBacklineOptions): Promise<RunBacklineResult> {
   const { config, adapter, cache, headRef, baseRef } = options;
 
+  // 1. Deploy head and run every probe against it FIRST, while it's the
+  //    only thing deployed. This matters because ComposeAdapter (the
+  //    default, zero-cloud adapter) ignores `ref` entirely and reuses
+  //    the same container/port for both head and base — so head must be
+  //    fully probed and its results captured before base's deploy or
+  //    teardown cycle ever runs, or head's container gets torn down out
+  //    from under it.
   const { previewUrl: headUrl } = await adapter.deploy(headRef);
-  await adapter.healthCheck(headUrl, config.target.wait_for.path, config.target.wait_for.timeout_seconds * 1000);
+  await adapter.healthCheck(
+    headUrl,
+    config.target.wait_for.path,
+    config.target.wait_for.timeout_seconds * 1000,
+  );
 
-  const baseOutputs = await getBaseOutputs(config, adapter, cache, baseRef);
-
-  const results: DiffResult[] = [];
+  const headOutputs: ProbeOutput[] = [];
   for (const probeConfig of config.probes) {
     const probeModule = resolveProbe(probeConfig.type);
-    const headOutput = await probeModule.run(probeConfig, headUrl);
+    headOutputs.push(await probeModule.run(probeConfig, headUrl));
+  }
+
+  // 2. Only now, with head's results safely captured, deal with base.
+  const baseOutputs = await getBaseOutputs(config, adapter, cache, baseRef);
+
+  // 3. Diff using the captured outputs — no more deploy/teardown calls
+  //    happen after this point, so nothing can pull the rug out.
+  const results: DiffResult[] = [];
+  for (const probeConfig of config.probes) {
+    const headOutput = headOutputs.find((o) => o.probeName === probeConfig.name);
     const baseOutput = baseOutputs.find((o) => o.probeName === probeConfig.name);
 
-    if (!baseOutput) {
+    if (!headOutput || !baseOutput) {
       results.push({
         probeName: probeConfig.name,
         status: "error",
         changedPaths: [],
-        error: "no base branch reference output available to diff against",
+        error: "missing head or base output to diff against",
       });
       continue;
     }
 
-    results.push(diffOutputs(baseOutput, headOutput, { ignorePaths: probeConfig.diff.ignore_fields }));
+    results.push(
+      diffOutputs(baseOutput, headOutput, { ignorePaths: probeConfig.diff.ignore_fields }),
+    );
   }
 
   const scrubbedResults = scrubSecrets(results);
@@ -67,12 +88,6 @@ export async function runBackline(options: RunBacklineOptions): Promise<RunBackl
   return { results: scrubbedResults, commentBody };
 }
 
-/**
- * Cache-first: if we already have base-branch output for this SHA,
- * skip deploying it again entirely. Only deploy + probe the base
- * branch when the cache misses (i.e. this is the first PR to compare
- * against this particular base commit).
- */
 async function getBaseOutputs(
   config: BacklineConfig,
   adapter: DeployAdapter,
@@ -86,7 +101,11 @@ async function getBaseOutputs(
   }
 
   const { previewUrl: baseUrl } = await adapter.deploy(baseRef);
-  await adapter.healthCheck(baseUrl, config.target.wait_for.path, config.target.wait_for.timeout_seconds * 1000);
+  await adapter.healthCheck(
+    baseUrl,
+    config.target.wait_for.path,
+    config.target.wait_for.timeout_seconds * 1000,
+  );
 
   const probeOutputs: ProbeOutput[] = [];
   for (const probeConfig of config.probes) {

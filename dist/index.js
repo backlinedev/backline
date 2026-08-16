@@ -31485,23 +31485,33 @@ function stringify(value) {
 async function runBackline(options) {
   const { config, adapter, cache, headRef, baseRef } = options;
   const { previewUrl: headUrl } = await adapter.deploy(headRef);
-  await adapter.healthCheck(headUrl, config.target.wait_for.path, config.target.wait_for.timeout_seconds * 1e3);
+  await adapter.healthCheck(
+    headUrl,
+    config.target.wait_for.path,
+    config.target.wait_for.timeout_seconds * 1e3
+  );
+  const headOutputs = [];
+  for (const probeConfig of config.probes) {
+    const probeModule = resolveProbe(probeConfig.type);
+    headOutputs.push(await probeModule.run(probeConfig, headUrl));
+  }
   const baseOutputs = await getBaseOutputs(config, adapter, cache, baseRef);
   const results = [];
   for (const probeConfig of config.probes) {
-    const probeModule = resolveProbe(probeConfig.type);
-    const headOutput = await probeModule.run(probeConfig, headUrl);
+    const headOutput = headOutputs.find((o) => o.probeName === probeConfig.name);
     const baseOutput = baseOutputs.find((o) => o.probeName === probeConfig.name);
-    if (!baseOutput) {
+    if (!headOutput || !baseOutput) {
       results.push({
         probeName: probeConfig.name,
         status: "error",
         changedPaths: [],
-        error: "no base branch reference output available to diff against"
+        error: "missing head or base output to diff against"
       });
       continue;
     }
-    results.push(diffOutputs(baseOutput, headOutput, { ignorePaths: probeConfig.diff.ignore_fields }));
+    results.push(
+      diffOutputs(baseOutput, headOutput, { ignorePaths: probeConfig.diff.ignore_fields })
+    );
   }
   const scrubbedResults = scrubSecrets(results);
   const commentBody = renderPrComment(scrubbedResults);
@@ -31517,7 +31527,11 @@ async function getBaseOutputs(config, adapter, cache, baseRef) {
     return cached.probeOutputs;
   }
   const { previewUrl: baseUrl } = await adapter.deploy(baseRef);
-  await adapter.healthCheck(baseUrl, config.target.wait_for.path, config.target.wait_for.timeout_seconds * 1e3);
+  await adapter.healthCheck(
+    baseUrl,
+    config.target.wait_for.path,
+    config.target.wait_for.timeout_seconds * 1e3
+  );
   const probeOutputs = [];
   for (const probeConfig of config.probes) {
     const probeModule = resolveProbe(probeConfig.type);

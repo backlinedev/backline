@@ -1,0 +1,19 @@
+name: "Backline"
+description: "Non-UI PR previews: diffs API and CLI behavior between your PR branch and base branch."
+inputs:
+  config:
+    description: "Path to the .backline.yml config file"
+    required: false
+    default: ".backline.yml"
+  github-token:
+    description: "Token used to read PR metadata and post the results comment"
+    required: true
+  pr-number:
+    description: "PR number (usually inferred from the event, override for testing)"
+    required: false
+  deploy-webhook-url:
+    description: "Required only when target.adapter is 'webhook' in .backline.yml"
+    required: false
+runs:
+  using: "node24"
+  main: "dist/index.js"

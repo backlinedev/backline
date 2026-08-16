@@ -1,7 +1,7 @@
 {
   "name": "backline",
   "version": "0.1.0",
-  "description": "PR previews for APIs and CLIs. No cloud, no database, no vendor lock-in.",
+  "description": "PR previews for APIs and CLIs",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",

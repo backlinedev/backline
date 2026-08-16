@@ -1,3 +1,4 @@
+import { createRequire } from 'module';const require = createRequire(import.meta.url);
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
   for (var name in all)

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import * as core from "@actions/core";
 import { loadConfigFromFile } from "./config/loader.js";
 import { validateConfigSemantics } from "./config/validate.js";
@@ -29,7 +30,25 @@ async function main(): Promise<void> {
     const github = new GitHubClient(token);
 
     const [owner, repo] = (process.env.GITHUB_REPOSITORY ?? "").split("/");
-    const prNumber = Number(process.env.GITHUB_EVENT_NUMBER ?? core.getInput("pr-number"));
+
+    // GitHub Actions writes the triggering event's full payload to a JSON
+    // file at GITHUB_EVENT_PATH. For a pull_request event, that payload
+    // contains the PR number (as both `pull_request.number` and the
+    // top-level `number`). Reading it here is the standard way to get the
+    // PR number — there is no `GITHUB_EVENT_NUMBER` env var.
+    const eventPath = process.env.GITHUB_EVENT_PATH;
+    let prNumber: number;
+    if (eventPath) {
+      const event = JSON.parse(readFileSync(eventPath, "utf-8"));
+      prNumber = event.pull_request?.number ?? event.number;
+    } else {
+      prNumber = Number(core.getInput("pr-number"));
+    }
+
+    if (!prNumber || Number.isNaN(prNumber)) {
+      throw new Error("Could not determine the pull request number from the event payload");
+    }
+
     const prMeta = await github.getPrMeta(owner, repo, prNumber);
 
     const { commentBody } = await runBackline({

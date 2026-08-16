@@ -23814,6 +23814,7 @@ var require_dist_node12 = __commonJS({
 
 // src/index.ts
 var core2 = __toESM(require_core(), 1);
+import { readFileSync } from "node:fs";
 
 // src/config/loader.ts
 import { readFile } from "node:fs/promises";
@@ -31531,7 +31532,17 @@ async function main() {
     const cache = new FileCacheStore();
     const github = new GitHubClient(token);
     const [owner, repo] = (process.env.GITHUB_REPOSITORY ?? "").split("/");
-    const prNumber = Number(process.env.GITHUB_EVENT_NUMBER ?? core2.getInput("pr-number"));
+    const eventPath = process.env.GITHUB_EVENT_PATH;
+    let prNumber;
+    if (eventPath) {
+      const event = JSON.parse(readFileSync(eventPath, "utf-8"));
+      prNumber = event.pull_request?.number ?? event.number;
+    } else {
+      prNumber = Number(core2.getInput("pr-number"));
+    }
+    if (!prNumber || Number.isNaN(prNumber)) {
+      throw new Error("Could not determine the pull request number from the event payload");
+    }
     const prMeta = await github.getPrMeta(owner, repo, prNumber);
     const { commentBody } = await runBackline({
       config,

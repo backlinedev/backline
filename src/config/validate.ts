@@ -12,13 +12,22 @@ import { access } from "node:fs/promises";
 import type { BacklineConfig } from "./schema.js";
 import { ConfigError } from "./loader.js";
 
+async function defaultFileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Runs every semantic check against a validated config, collecting
  * *all* problems before failing — not stopping at the first one.
  *
  * @remarks
- * Someone fixing their config wants to see every mistake at once,
- * not discover them one at a time across five separate runs.
+ * Someone fixing their config wants to see every mistake at once, not
+ * discover them one at a time across five separate runs.
  *
  * @param config - A config that has already passed
  * {@link BacklineConfigSchema} validation.
@@ -43,7 +52,12 @@ export async function validateConfigSemantics(
       }
     }
     if (probe.type === "cli") {
-      if (!(await fileExists(probe.binary))) {
+      // Only check files that look like an actual path (start with
+      // ./, ../, .\, ..\, or a leading slash/backslash) — a bare
+      // command name like "node" or "python3" is expected to be
+      // resolved from PATH at runtime, not found sitting in the repo.
+      const looksLikeAPath = /^(\.[\\/]|\.\.[\\/]|[\\/])/.test(probe.binary);
+      if (looksLikeAPath && !(await fileExists(probe.binary))) {
         problems.push(
           `probe "${probe.name}": binary "${probe.binary}" does not exist — did you forget to build it before running Backline?`,
         );
@@ -51,9 +65,6 @@ export async function validateConfigSemantics(
     }
   }
 
-  // Duplicate probe names make the diff-matching logic in the
-  // orchestrator (and the base-result cache) ambiguous — two probes
-  // can't share a name.
   const seenNames = new Set<string>();
   for (const probe of config.probes) {
     if (seenNames.has(probe.name)) {
@@ -66,22 +77,5 @@ export async function validateConfigSemantics(
     throw new ConfigError(
       `.backline.yml has semantic errors:\n${problems.map((p) => `  - ${p}`).join("\n")}`,
     );
-  }
-}
-
-/**
- * Default `fileExists` check, backed by the real filesystem.
- *
- * @remarks
- * Only used when the caller doesn't inject their own — real usage
- * (the Action, the CLI) relies on this default; tests typically pass
- * in a fake instead.
- */
-async function defaultFileExists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
   }
 }

@@ -7198,6 +7198,14 @@ async function loadConfigFromFile(path) {
 
 // src/config/validate.ts
 import { access } from "node:fs/promises";
+async function defaultFileExists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
 async function validateConfigSemantics(config, fileExists = defaultFileExists) {
   const problems = [];
   for (const probe of config.probes) {
@@ -7209,7 +7217,8 @@ async function validateConfigSemantics(config, fileExists = defaultFileExists) {
       }
     }
     if (probe.type === "cli") {
-      if (!await fileExists(probe.binary)) {
+      const looksLikeAPath = /^(\.[\\/]|\.\.[\\/]|[\\/])/.test(probe.binary);
+      if (looksLikeAPath && !await fileExists(probe.binary)) {
         problems.push(
           `probe "${probe.name}": binary "${probe.binary}" does not exist \u2014 did you forget to build it before running Backline?`
         );
@@ -7228,14 +7237,6 @@ async function validateConfigSemantics(config, fileExists = defaultFileExists) {
       `.backline.yml has semantic errors:
 ${problems.map((p) => `  - ${p}`).join("\n")}`
     );
-  }
-}
-async function defaultFileExists(path) {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
   }
 }
 

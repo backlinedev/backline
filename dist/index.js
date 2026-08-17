@@ -31576,8 +31576,8 @@ async function main() {
       config,
       adapter,
       cache,
-      headRef: prMeta.headRef,
-      baseRef: prMeta.baseRef,
+      headRef: prMeta.headSha,
+      baseRef: prMeta.baseSha,
       postComment: (body) => github.postComment(owner, repo, prNumber, body)
     });
     core2.info(commentBody);

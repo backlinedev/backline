@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
+import { appendFile } from "node:fs/promises";
 import * as core from "@actions/core";
 import { loadConfigFromFile } from "./config/loader.js";
 import { validateConfigSemantics } from "./config/validate.js";
+import type { DeployAdapter } from "./adapters/DeployAdapter.js";
 import { ComposeAdapter } from "./adapters/ComposeAdapter.js";
 import { WebhookAdapter } from "./adapters/WebhookAdapter.js";
 import { FileCacheStore } from "./cache/FileCacheStore.js";
@@ -21,10 +23,15 @@ async function main(): Promise<void> {
     const config = await loadConfigFromFile(configPath);
     await validateConfigSemantics(config);
 
-    const adapter =
-      config.target.adapter === "webhook"
-        ? new WebhookAdapter(core.getInput("deploy-webhook-url", { required: true }))
-        : new ComposeAdapter();
+    // The composition root for adapters — the one place allowed to know
+    // about concrete adapter classes. Adding a new adapter later means
+    // adding one line here, without touching how it's selected or used
+    // anywhere else.
+    const adapterRegistry: Record<string, () => DeployAdapter> = {
+      compose: () => new ComposeAdapter(),
+      webhook: () => new WebhookAdapter(core.getInput("deploy-webhook-url", { required: true })),
+    };
+    const adapter = adapterRegistry[config.target.adapter]();
 
     const cache = new FileCacheStore();
     const github = new GitHubClient(token);
@@ -51,16 +58,43 @@ async function main(): Promise<void> {
 
     const prMeta = await github.getPrMeta(owner, repo, prNumber);
 
-    const { commentBody } = await runBackline({
+    // The Job Summary itself has no separately linkable URL — the run
+    // page is where GitHub renders it, at the top, so that's what gets
+    // linked from the PR comment.
+    const reportUrl =
+      process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+        ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+        : undefined;
+
+    const { commentBody, jobSummaryBody, results } = await runBackline({
       config,
       adapter,
       cache,
-      headRef: prMeta.headRef,
-      baseRef: prMeta.baseRef,
-      postComment: (body) => github.postComment(owner, repo, prNumber, body),
+      headRef: prMeta.headSha,
+      baseRef: prMeta.baseSha,
+      reportUrl,
+      postComment: (body) => github.upsertComment(owner, repo, prNumber, body),
     });
 
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      await appendFile(process.env.GITHUB_STEP_SUMMARY, jobSummaryBody);
+    }
+
     core.info(commentBody);
+
+    // Off by default (`fail_on: never`) — a real diff is informational
+    // unless the developer explicitly opts into gating merges on it.
+    const failOn = config.lifecycle.fail_on;
+    const shouldFail =
+      (failOn === "diff_detected" &&
+        results.some((r) => r.status === "diff_detected" || r.status === "error")) ||
+      (failOn === "error" && results.some((r) => r.status === "error"));
+
+    if (shouldFail) {
+      core.setFailed(
+        `Backline: at least one probe reported "${failOn}" or worse (fail_on: ${failOn})`,
+      );
+    }
   } catch (err) {
     core.setFailed((err as Error).message);
   }

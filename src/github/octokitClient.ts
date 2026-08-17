@@ -8,11 +8,9 @@ export interface PrMeta {
   baseSha: string;
 }
 
-/**
- * The only file in the codebase that imports @octokit/rest directly.
- * If GitHub's API ever changes, or this needs to move to GraphQL,
- * there's exactly one file to touch.
- */
+/** A marker embedded invisibly in every comment Backline posts, used to find it again later. */
+const COMMENT_MARKER = "<!-- backline-comment -->";
+
 export class GitHubClient {
   private readonly octokit: Octokit;
 
@@ -31,16 +29,40 @@ export class GitHubClient {
     };
   }
 
-  async postComment(owner: string, repo: string, prNumber: number, body: string): Promise<void> {
-    await this.octokit.rest.issues.createComment({
+  /**
+   * Posts a new comment, or edits Backline's own prior comment on this
+   * PR if one already exists — so pushing new commits updates the
+   * same comment instead of the conversation filling up with a fresh
+   * one every run.
+   */
+  async upsertComment(owner: string, repo: string, prNumber: number, body: string): Promise<void> {
+    const markedBody = `${COMMENT_MARKER}\n${body}`;
+
+    const { data: comments } = await this.octokit.rest.issues.listComments({
       owner,
       repo,
       issue_number: prNumber,
-      body,
     });
+
+    const existing = comments.find((c) => c.body?.includes(COMMENT_MARKER));
+
+    if (existing) {
+      await this.octokit.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: existing.id,
+        body: markedBody,
+      });
+    } else {
+      await this.octokit.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: prNumber,
+        body: markedBody,
+      });
+    }
   }
 
-  /** Exposed for config/loader.ts's loadConfigFromGitHub, which only needs getContent. */
   get rest() {
     return this.octokit.rest;
   }

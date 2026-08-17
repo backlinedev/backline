@@ -4,14 +4,12 @@
  * @remarks
  * This is the actual reason Backline exists — everything else in the
  * system exists to get two things worth comparing into this
- * function's hands. Pure, dependency-free logic: given the same two
+ * function's hands. Pure, dependency-free logic: given the same
  * inputs, always the same output, nothing external involved.
  */
 import type { ProbeOutput } from "../probes/ProbeModule.js";
 
-/**
- * Configuration for how a diff should be run.
- */
+/** Configuration for how a diff should be run. */
 export interface DiffOptions {
   /**
    * Dot/bracket paths to ignore, e.g.
@@ -36,6 +34,14 @@ export interface DiffResult {
   changedPaths: ChangedPath[];
   error?: string;
 }
+
+/**
+ * How much slower (as a fraction of base's duration) head must be
+ * before it's flagged as a real regression rather than ordinary
+ * run-to-run timing noise. 0.5 means head must take at least 50%
+ * longer than base to be reported.
+ */
+const DURATION_REGRESSION_THRESHOLD = 0.5;
 
 /**
  * Compares a base-branch {@link ProbeOutput} against a head-branch one.
@@ -74,6 +80,17 @@ export function diffOutputs(
 
   collectDiffs(beforeList, afterList, rootField, ignoreSet, changedPaths);
 
+  if (base.durationMs > 0) {
+    const slowdownRatio = (head.durationMs - base.durationMs) / base.durationMs;
+    if (slowdownRatio > DURATION_REGRESSION_THRESHOLD) {
+      changedPaths.push({
+        path: "durationMs",
+        before: `${base.durationMs}ms`,
+        after: `${head.durationMs}ms`,
+      });
+    }
+  }
+
   return {
     probeName: head.probeName,
     status: changedPaths.length > 0 ? "diff_detected" : "pass",
@@ -83,9 +100,10 @@ export function diffOutputs(
 
 /**
  * Recursively walks two values in parallel, building a JSON-path-like
- * string as it goes, and records a {@link ChangedPath} wherever the
- * values differ — unless that exact path (or a wildcard match) is in
- * the ignore set.
+ * string as it goes (e.g. "[0].response.body.rank_score"), and records
+ * a {@link ChangedPath} wherever the values differ — unless that exact
+ * path (or a wildcard match, see {@link pathIsIgnored}) is in the
+ * ignore set.
  */
 function collectDiffs(
   before: unknown,
@@ -125,9 +143,9 @@ function collectDiffs(
 }
 
 /**
- * Supports exact matches and a single trailing wildcard array-index
- * segment (`requests[*].response.body.timestamp`), so one ignore rule
- * covers every item in a list of requests at once.
+ * Supports exact matches ("requests[0].response.body.timestamp") and a
+ * single trailing wildcard segment ("requests[*].response.body.timestamp")
+ * so one ignore rule covers every item in an array of requests.
  */
 function pathIsIgnored(path: string, ignoreSet: Set<string>): boolean {
   if (ignoreSet.has(path)) return true;

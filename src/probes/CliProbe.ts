@@ -7,13 +7,6 @@ import type { CliProbeConfig, ProbeConfig } from "../config/schema.js";
 import type { ProbeModule, ProbeOutput } from "./ProbeModule.js";
 
 export class CliProbe implements ProbeModule {
-  /**
-   * @remarks
-   * `_targetUrl` is unused — a cli probe runs a local binary, it has
-   * no network target. It's still accepted as a parameter to satisfy
-   * the shared {@link ProbeModule} interface uniformly across both
-   * probe types.
-   */
   async run(config: ProbeConfig, _targetUrl: string): Promise<ProbeOutput> {
     if (config.type !== "cli") {
       throw new Error(`CliProbe received a non-cli config: "${config.type}"`);
@@ -25,7 +18,12 @@ export class CliProbe implements ProbeModule {
     try {
       for (const command of cliConfig.commands) {
         const result = await runOnce(cliConfig.binary, command.args, command.stdin ?? undefined);
-        commandRuns.push({ args: command.args, ...result });
+        commandRuns.push({
+          args: command.args,
+          stdout: normalize(result.stdout, cliConfig.diff.normalize),
+          stderr: normalize(result.stderr, cliConfig.diff.normalize),
+          exitCode: result.exitCode,
+        });
       }
 
       return {
@@ -47,14 +45,27 @@ export class CliProbe implements ProbeModule {
 }
 
 /**
- * Runs one command invocation as a subprocess.
- *
- * @remarks
- * A 15-second timeout is passed directly to `spawn` — if the process
- * hangs (e.g. waiting on stdin that never arrives because `stdin`
- * wasn't configured), it gets killed rather than hanging the whole
- * probe run indefinitely.
+ * Applies each configured cleanup operation to captured text before
+ * it reaches the diff engine — this is what makes `normalize:` in
+ * `.backline.yml` actually do something, rather than just being
+ * declared and silently ignored.
  */
+function normalize(text: string, operations: ("strip_ansi" | "strip_timestamps")[]): string {
+  let result = text;
+  for (const op of operations) {
+    if (op === "strip_ansi") {
+      // Matches standard ANSI escape sequences used for terminal color/formatting.
+      result = result.replace(/\x1b\[[0-9;]*m/g, "");
+    }
+    if (op === "strip_timestamps") {
+      // Matches common ISO-8601-style timestamps embedded in output,
+      // e.g. "Finished at 2026-08-16T10:32:00Z".
+      result = result.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z?/g, "[timestamp]");
+    }
+  }
+  return result;
+}
+
 function runOnce(
   binary: string,
   args: string[],

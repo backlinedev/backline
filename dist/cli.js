@@ -7139,11 +7139,6 @@ var CliProbeSchema = external_exports.object({
   diff: CliDiffOptionsSchema.default({ against: "base_branch", ignore_fields: [], normalize: [] })
 });
 var ProbeConfigSchema = external_exports.discriminatedUnion("type", [ApiProbeSchema, CliProbeSchema]);
-var DependencySchema = external_exports.object({
-  repo: external_exports.string().min(1),
-  ref: external_exports.string().default("main"),
-  required: external_exports.boolean().default(true)
-});
 var TargetSchema = external_exports.object({
   base_url: external_exports.string().min(1),
   wait_for: external_exports.object({
@@ -7154,12 +7149,13 @@ var TargetSchema = external_exports.object({
 });
 var LifecycleSchema = external_exports.object({
   teardown_on: external_exports.array(external_exports.enum(["closed"])).default(["closed"]),
-  idle_timeout_minutes: external_exports.number().int().positive().default(60)
+  idle_timeout_minutes: external_exports.number().int().positive().default(60),
+  /** If set, the Action fails (blocking merge if required) when any probe reports this status or worse. */
+  fail_on: external_exports.enum(["never", "diff_detected", "error"]).default("never")
 });
 var BacklineConfigSchema = external_exports.object({
   version: external_exports.literal(1),
   target: TargetSchema,
-  dependencies: external_exports.array(DependencySchema).default([]),
   probes: external_exports.array(ProbeConfigSchema).min(1),
   lifecycle: LifecycleSchema.default({
     teardown_on: ["closed"],
@@ -7387,13 +7383,6 @@ var ApiProbe = class {
 // src/probes/CliProbe.ts
 import { spawn } from "node:child_process";
 var CliProbe = class {
-  /**
-   * @remarks
-   * `_targetUrl` is unused — a cli probe runs a local binary, it has
-   * no network target. It's still accepted as a parameter to satisfy
-   * the shared {@link ProbeModule} interface uniformly across both
-   * probe types.
-   */
   async run(config, _targetUrl) {
     if (config.type !== "cli") {
       throw new Error(`CliProbe received a non-cli config: "${config.type}"`);
@@ -7404,7 +7393,12 @@ var CliProbe = class {
     try {
       for (const command of cliConfig.commands) {
         const result = await runOnce(cliConfig.binary, command.args, command.stdin ?? void 0);
-        commandRuns.push({ args: command.args, ...result });
+        commandRuns.push({
+          args: command.args,
+          stdout: normalize(result.stdout, cliConfig.diff.normalize),
+          stderr: normalize(result.stderr, cliConfig.diff.normalize),
+          exitCode: result.exitCode
+        });
       }
       return {
         probeName: cliConfig.name,
@@ -7423,6 +7417,18 @@ var CliProbe = class {
     }
   }
 };
+function normalize(text, operations) {
+  let result = text;
+  for (const op of operations) {
+    if (op === "strip_ansi") {
+      result = result.replace(/\x1b\[[0-9;]*m/g, "");
+    }
+    if (op === "strip_timestamps") {
+      result = result.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z?/g, "[timestamp]");
+    }
+  }
+  return result;
+}
 function runOnce(binary2, args, stdin) {
   return new Promise((resolve, reject) => {
     const child = spawn(binary2, args, { timeout: 15e3 });
@@ -7455,6 +7461,7 @@ function resolveProbe(type2) {
 }
 
 // src/diff/jsonDiff.ts
+var DURATION_REGRESSION_THRESHOLD = 0.5;
 function diffOutputs(base, head, options = { ignorePaths: [] }) {
   if (base.error || head.error) {
     return {
@@ -7470,6 +7477,16 @@ function diffOutputs(base, head, options = { ignorePaths: [] }) {
   const beforeList = base.requests ?? base.commandRuns ?? [];
   const afterList = head.requests ?? head.commandRuns ?? [];
   collectDiffs(beforeList, afterList, rootField, ignoreSet, changedPaths);
+  if (base.durationMs > 0) {
+    const slowdownRatio = (head.durationMs - base.durationMs) / base.durationMs;
+    if (slowdownRatio > DURATION_REGRESSION_THRESHOLD) {
+      changedPaths.push({
+        path: "durationMs",
+        before: `${base.durationMs}ms`,
+        after: `${head.durationMs}ms`
+      });
+    }
+  }
   return {
     probeName: head.probeName,
     status: changedPaths.length > 0 ? "diff_detected" : "pass",
@@ -7554,47 +7571,54 @@ function scrubSecrets(value) {
 }
 
 // src/render/prComment.ts
-var STATUS_LABEL = {
-  pass: "pass",
-  diff_detected: "diff detected",
-  error: "error"
+var BADGE_STYLE = {
+  pass: { label: "pass", color: "brightgreen" },
+  diff_detected: { label: "diff detected", color: "yellow" },
+  error: { label: "error", color: "red" }
 };
-function renderPrComment(results, consoleUrl) {
+function statusBadge(status) {
+  const { label, color } = BADGE_STYLE[status];
+  const encodedLabel = encodeURIComponent(label);
+  return `![${label}](https://img.shields.io/badge/status-${encodedLabel}-${color})`;
+}
+function renderPrComment(results, reportUrl) {
   const lines = [];
   lines.push(`### Backline results \u2014 ${results.length} probe${results.length === 1 ? "" : "s"}`);
   lines.push("");
   lines.push("| Probe | Status |");
   lines.push("|---|---|");
   for (const result of results) {
-    lines.push(`| ${result.probeName} | ${STATUS_LABEL[result.status]} |`);
+    lines.push(`| ${result.probeName} | ${statusBadge(result.status)} |`);
   }
   lines.push("");
-  for (const result of results) {
-    if (result.status === "diff_detected") {
-      lines.push(`<details>`);
-      lines.push(`<summary>diff \u2014 ${result.probeName}</summary>`);
-      lines.push("");
-      lines.push("```diff");
-      for (const change of result.changedPaths) {
-        lines.push(`- ${change.path}: ${stringify(change.before)}`);
-        lines.push(`+ ${change.path}: ${stringify(change.after)}`);
-      }
-      lines.push("```");
-      lines.push(`</details>`);
-      lines.push("");
-    }
-    if (result.status === "error") {
-      lines.push(`> **${result.probeName}** failed to run: ${result.error}`);
-      lines.push("");
-    }
+  if (reportUrl) {
+    lines.push(`[View full diff report](${reportUrl})`);
   }
-  if (consoleUrl) {
-    lines.push(`[Open interactive console](${consoleUrl})`);
+  return lines.join("\n");
+}
+function renderJobSummary(results) {
+  const lines = [];
+  lines.push(`# Backline \u2014 full diff report`);
+  lines.push("");
+  for (const result of results) {
+    lines.push(`## ${result.probeName} \u2014 ${result.status.replace("_", " ")}`);
+    lines.push("");
+    if (result.status === "pass") {
+      lines.push("No differences detected.");
+    } else if (result.status === "error") {
+      lines.push(`Failed to run: ${result.error}`);
+    } else {
+      lines.push("| Field | Base | Head |");
+      lines.push("|---|---|---|");
+      for (const change of result.changedPaths) {
+        lines.push(`| \`${change.path}\` | ${stringify(change.before)} | ${stringify(change.after)} |`);
+      }
+    }
+    lines.push("");
   }
   return lines.join("\n");
 }
 function stringify(value) {
-  if (typeof value === "string") return JSON.stringify(value);
   return JSON.stringify(value);
 }
 
@@ -7631,36 +7655,37 @@ async function runBackline(options) {
     );
   }
   const scrubbedResults = scrubSecrets(results);
-  const commentBody = renderPrComment(scrubbedResults);
+  const commentBody = renderPrComment(scrubbedResults, options.reportUrl);
+  const jobSummaryBody = renderJobSummary(scrubbedResults);
   if (options.postComment) {
     await options.postComment(commentBody);
   }
-  return { results: scrubbedResults, commentBody };
-}
-async function getBaseOutputs(config, adapter, cache, baseRef) {
-  const cacheKey = `base-${baseRef}`;
-  const cached = await cache.get(cacheKey);
-  if (cached) {
-    return cached.probeOutputs;
+  return { results: scrubbedResults, commentBody, jobSummaryBody };
+  async function getBaseOutputs(config2, adapter2, cache2, baseRef2) {
+    const cacheKey = `base-${baseRef2}`;
+    const cached = await cache2.get(cacheKey);
+    if (cached) {
+      return cached.probeOutputs;
+    }
+    const { previewUrl: baseUrl } = await adapter2.deploy(baseRef2);
+    await adapter2.healthCheck(
+      baseUrl,
+      config2.target.wait_for.path,
+      config2.target.wait_for.timeout_seconds * 1e3
+    );
+    const probeOutputs = [];
+    for (const probeConfig of config2.probes) {
+      const probeModule = resolveProbe(probeConfig.type);
+      probeOutputs.push(await probeModule.run(probeConfig, baseUrl));
+    }
+    await cache2.set(cacheKey, {
+      baseSha: baseRef2,
+      generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      probeOutputs
+    });
+    await adapter2.teardown(baseRef2);
+    return probeOutputs;
   }
-  const { previewUrl: baseUrl } = await adapter.deploy(baseRef);
-  await adapter.healthCheck(
-    baseUrl,
-    config.target.wait_for.path,
-    config.target.wait_for.timeout_seconds * 1e3
-  );
-  const probeOutputs = [];
-  for (const probeConfig of config.probes) {
-    const probeModule = resolveProbe(probeConfig.type);
-    probeOutputs.push(await probeModule.run(probeConfig, baseUrl));
-  }
-  await cache.set(cacheKey, {
-    baseSha: baseRef,
-    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    probeOutputs
-  });
-  await adapter.teardown(baseRef);
-  return probeOutputs;
 }
 
 // src/cli.ts

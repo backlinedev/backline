@@ -100,11 +100,13 @@ const ProbeConfigSchema = z.discriminatedUnion("type", [ApiProbeSchema, CliProbe
  * one repository (see the multi-repo preview discussion in
  * `backline-dev-plan.md`).
  */
-const DependencySchema = z.object({
+/**
+ * const DependencySchema = z.object({
   repo: z.string().min(1),
   ref: z.string().default("main"),
   required: z.boolean().default(true),
-});
+}); scoped for future multi-repo support, not used yet
+*/
 
 /**
  * Where the preview is reachable, and how to confirm it's actually
@@ -132,6 +134,8 @@ const TargetSchema = z.object({
 const LifecycleSchema = z.object({
   teardown_on: z.array(z.enum(["closed"])).default(["closed"]),
   idle_timeout_minutes: z.number().int().positive().default(60),
+  /** If set, the Action fails (blocking merge if required) when any probe reports this status or worse. */
+  fail_on: z.enum(["never", "diff_detected", "error"]).default("never"),
 });
 
 /**
@@ -153,7 +157,6 @@ const LifecycleSchema = z.object({
 export const BacklineConfigSchema = z.object({
   version: z.literal(1),
   target: TargetSchema,
-  dependencies: z.array(DependencySchema).default([]),
   probes: z.array(ProbeConfigSchema).min(1),
   lifecycle: LifecycleSchema.default({
     teardown_on: ["closed"],

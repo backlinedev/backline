@@ -14,7 +14,7 @@ import type { ProbeOutput } from "./probes/ProbeModule.js";
 import { diffOutputs, type DiffResult } from "./diff/jsonDiff.js";
 import type { CacheStore } from "./cache/CacheStore.js";
 import { scrubSecrets } from "./render/secretScrub.js";
-import { renderPrComment } from "./render/prComment.js";
+import { renderPrComment, renderJobSummary } from "./render/prComment.js";
 
 export interface RunBacklineOptions {
   config: BacklineConfig;
@@ -22,12 +22,15 @@ export interface RunBacklineOptions {
   cache: CacheStore;
   headRef: string;
   baseRef: string;
+  /** Link to the full Job Summary — passed through to the PR comment. */
+  reportUrl?: string;
   postComment?: (body: string) => Promise<void>;
 }
 
 export interface RunBacklineResult {
   results: DiffResult[];
   commentBody: string;
+  jobSummaryBody: string;
 }
 
 export async function runBackline(options: RunBacklineOptions): Promise<RunBacklineResult> {
@@ -78,15 +81,15 @@ export async function runBackline(options: RunBacklineOptions): Promise<RunBackl
     );
   }
 
-  const scrubbedResults = scrubSecrets(results);
-  const commentBody = renderPrComment(scrubbedResults);
+const scrubbedResults = scrubSecrets(results);
+const commentBody = renderPrComment(scrubbedResults, options.reportUrl);
+const jobSummaryBody = renderJobSummary(scrubbedResults);
 
-  if (options.postComment) {
-    await options.postComment(commentBody);
-  }
-
-  return { results: scrubbedResults, commentBody };
+if (options.postComment) {
+  await options.postComment(commentBody);
 }
+
+return { results: scrubbedResults, commentBody, jobSummaryBody };
 
 async function getBaseOutputs(
   config: BacklineConfig,
@@ -121,4 +124,4 @@ async function getBaseOutputs(
   await adapter.teardown(baseRef);
 
   return probeOutputs;
-}
+}}

@@ -2,33 +2,51 @@ const express = require("express");
 const app = express();
 app.use(express.json());
 
-const ITEMS = [
-  { id: 1, name: "Widget", price: 9.99, rating: 4.2 },
-  { id: 2, name: "Gadget", price: 19.99, rating: 3.8 },
-  { id: 3, name: "Gizmo", price: 14.5, rating: 4.7 },
+const USERS = [
+  {
+    id: 1,
+    name: "Ada",
+    profile: {
+      settings: { theme: "dark", notifications: true },
+      roles: ["admin", "editor"],
+    },
+  },
+  {
+    id: 2,
+    name: "Grace",
+    profile: {
+      settings: { theme: "light", notifications: false },
+      roles: ["viewer"],
+    },
+  },
 ];
 
 app.get("/health", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/items", (req, res) => {
-  res.json({ items: ITEMS });
+app.get("/users", (req, res) => {
+  res.json({ users: USERS });
 });
 
-function computeScore(item) {
-  const priceScore = 10 - item.price / 5;
-  const ratingScore = item.rating * 2;
-  return Number((priceScore * 0.4 + ratingScore * 0.6).toFixed(2));
+app.get("/users/:id", (req, res) => {
+  const user = USERS.find((u) => u.id === Number(req.params.id));
+  if (!user) return res.status(404).json({ error: "not found" });
+  res.json(user);
+});
+
+function summarize(user) {
+  return {
+    id: user.id,
+    roleCount: user.profile.roles.length,
+    theme: user.profile.settings.theme,
+  };
 }
 
-app.post("/score", (req, res) => {
-  const { itemId } = req.body;
-  const item = ITEMS.find((i) => i.id === itemId);
-  if (!item) {
-    return res.status(404).json({ error: "item not found" });
-  }
-  res.json({ itemId: item.id, name: item.name, score: computeScore(item) });
+app.get("/users/:id/summary", (req, res) => {
+  const user = USERS.find((u) => u.id === Number(req.params.id));
+  if (!user) return res.status(404).json({ error: "not found" });
+  res.json(summarize(user));
 });
 
-app.listen(4000, () => console.log("test app on :4000"));
+app.listen(4000, () => console.log("test-app2 on :4000"));

@@ -1,9 +1,9 @@
 import type { DiffResult } from "../diff/jsonDiff.js";
 
 const STATUS_LABEL: Record<DiffResult["status"], string> = {
-  pass: "✅ pass",
-  diff_detected: "⚠️ diff detected",
-  error: "❌ error",
+  pass: "pass",
+  diff_detected: "diff detected",
+  error: "error",
 };
 
 /**

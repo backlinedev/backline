@@ -31057,6 +31057,9 @@ async function defaultFileExists(path) {
 // src/adapters/ComposeAdapter.ts
 import { exec as execCb } from "node:child_process";
 import { promisify } from "node:util";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // src/adapters/DeployAdapter.ts
 var DeployTimeoutError = class extends Error {
@@ -31069,28 +31072,31 @@ var DeployTimeoutError = class extends Error {
 // src/adapters/ComposeAdapter.ts
 var exec = promisify(execCb);
 var ComposeAdapter = class {
-  constructor(composeFile = "docker-compose.yml", previewPort = 4e3) {
+  constructor(composeFile = "docker-compose.yml") {
     this.composeFile = composeFile;
-    this.previewPort = previewPort;
   }
+  deployments = /* @__PURE__ */ new Map();
+  nextPort = 4e3;
   async deploy(ref, envFile) {
+    const worktreePath = await mkdtemp(join(tmpdir(), "backline-"));
+    const projectName = `backline-${ref.replace(/[^a-zA-Z0-9]/g, "")}-${Date.now()}`;
+    const port = this.nextPort++;
+    await exec(`git worktree add --detach ${worktreePath} ${ref}`);
     const envFlag = envFile ? `--env-file ${envFile}` : "";
-    const command = `docker compose -f ${this.composeFile} ${envFlag} up -d --build`;
-    console.log(`[ComposeAdapter] running: ${command}`);
-    try {
-      const { stdout, stderr } = await exec(command);
-      console.log(`[ComposeAdapter] stdout:
-${stdout}`);
-      if (stderr) console.log(`[ComposeAdapter] stderr:
-${stderr}`);
-    } catch (err) {
-      console.error(`[ComposeAdapter] docker compose failed:`, err);
-      throw err;
-    }
-    return { previewUrl: `http://localhost:${this.previewPort}` };
+    await exec(
+      `docker compose -f ${worktreePath}/${this.composeFile} -p ${projectName} ${envFlag} up -d --build`,
+      { env: { ...process.env, BACKLINE_PORT: String(port) } }
+    );
+    this.deployments.set(ref, { worktreePath, port, projectName });
+    return { previewUrl: `http://localhost:${port}` };
   }
-  async teardown(_ref) {
-    await exec(`docker compose -f ${this.composeFile} down -v`);
+  async teardown(ref) {
+    const deployment = this.deployments.get(ref);
+    if (!deployment) return;
+    await exec(`docker compose -p ${deployment.projectName} down -v`);
+    await exec(`git worktree remove --force ${deployment.worktreePath}`);
+    await rm(deployment.worktreePath, { recursive: true, force: true });
+    this.deployments.delete(ref);
   }
   async healthCheck(previewUrl, path, timeoutMs) {
     const deadline = Date.now() + timeoutMs;
@@ -31101,14 +31107,11 @@ ${stderr}`);
         if (res.ok) return;
       } catch {
       }
-      await sleep(1e3);
+      await new Promise((r) => setTimeout(r, 1e3));
     }
     throw new DeployTimeoutError(url, timeoutMs);
   }
 };
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 // src/adapters/WebhookAdapter.ts
 var WebhookAdapter = class {
@@ -31156,7 +31159,7 @@ var WebhookAdapter = class {
 
 // src/cache/FileCacheStore.ts
 import { readFile as readFile2, writeFile, mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join as join2 } from "node:path";
 var FileCacheStore = class {
   constructor(cacheDir = ".backline-cache") {
     this.cacheDir = cacheDir;
@@ -31176,7 +31179,7 @@ var FileCacheStore = class {
   }
   pathFor(key) {
     const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, "_");
-    return join(this.cacheDir, `${safeKey}.json`);
+    return join2(this.cacheDir, `${safeKey}.json`);
   }
 };
 
@@ -31438,9 +31441,9 @@ function scrubSecrets(value) {
 
 // src/render/prComment.ts
 var STATUS_LABEL = {
-  pass: "\u2705 pass",
-  diff_detected: "\u26A0\uFE0F diff detected",
-  error: "\u274C error"
+  pass: "pass",
+  diff_detected: "diff detected",
+  error: "error"
 };
 function renderPrComment(results, consoleUrl) {
   const lines = [];

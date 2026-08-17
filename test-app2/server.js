@@ -16,7 +16,7 @@ const USERS = [
     name: "Grace",
     profile: {
       settings: { theme: "light", notifications: false },
-      roles: ["viewer"],
+      roles: ["viewer", "reviewer"],
     },
   },
 ];
@@ -38,7 +38,7 @@ app.get("/users/:id", (req, res) => {
 function summarize(user) {
   return {
     id: user.id,
-    roleCount: user.profile.roles.length + 1, // deliberate bug for testing
+    roleCount: user.profile.roles.length,
     theme: user.profile.settings.theme,
   };
 }

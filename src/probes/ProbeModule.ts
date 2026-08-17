@@ -12,11 +12,6 @@ import type { ProbeConfig } from "../config/schema.js";
 /**
  * The shape every probe type normalizes its results into, regardless
  * of whether it ran HTTP requests or a CLI binary.
- *
- * @remarks
- * This uniformity is what lets the diff engine and the renderer stay
- * completely ignorant of which probe type produced the data — they
- * only ever see this shape.
  */
 export interface ProbeOutput {
   probeName: string;
@@ -35,25 +30,23 @@ export interface ProbeOutput {
     exitCode: number | null;
   }>;
   durationMs: number;
-  /**
-   * Set if the probe itself failed to run — a network error, a
-   * timeout, a crashed subprocess. Distinct from a "diff detected"
-   * result: this means the check itself never completed.
-   */
+  /** Set if the probe itself failed to run — distinct from "diff detected". */
   error?: string;
 }
 
-/**
- * Implemented once per probe type, registered in `registry.ts`.
- */
+/** Implemented once per probe type, registered in `registry.ts`. */
 export interface ProbeModule {
   /**
    * Run this probe and return its result.
    *
    * @param config - The specific probe's config.
    * @param targetUrl - The deployed preview's base URL. An `api`
-   * probe sends requests here; a `cli` probe ignores it entirely,
-   * since it runs a local binary instead.
+   * probe sends requests here; a `cli` probe ignores it entirely.
+   * @param workingDirectory - The isolated checkout the deployed ref
+   * lives in, if the adapter provides one. `ApiProbe` ignores this
+   * entirely; `CliProbe` runs its binary from here specifically so it
+   * executes that ref's actual code, not whatever's on the shared
+   * top-level checkout.
    */
-  run(config: ProbeConfig, targetUrl: string): Promise<ProbeOutput>;
+  run(config: ProbeConfig, targetUrl: string, workingDirectory?: string): Promise<ProbeOutput>;
 }

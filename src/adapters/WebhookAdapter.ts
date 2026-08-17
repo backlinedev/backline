@@ -1,3 +1,13 @@
+/**
+ * For anyone who already has a deploy pipeline (Uffizzi, Fly.io, a
+ * custom script) and just wants Backline to consume the resulting URL.
+ *
+ * @remarks
+ * CLI probes are meaningfully limited with this adapter: there is no
+ * per-ref isolated checkout to run a binary from, so `workingDirectory`
+ * is always the current process directory. A webhook-deployed target
+ * is only reliably diffable via `api` probes.
+ */
 import type { DeployAdapter } from "./DeployAdapter.js";
 import { DeployTimeoutError } from "./DeployAdapter.js";
 
@@ -5,20 +15,13 @@ interface WebhookDeployResponse {
   preview_url: string;
 }
 
-/**
- * For anyone who already has a deploy pipeline (Uffizzi, Fly.io, a
- * custom script) and just wants Backline to consume the resulting
- * URL. POSTs { ref } to a configured endpoint and expects
- * { preview_url } back — that's the entire contract, deliberately
- * as small as possible so it works with almost anything.
- */
 export class WebhookAdapter implements DeployAdapter {
   constructor(
     private readonly deployWebhookUrl: string,
     private readonly teardownWebhookUrl?: string,
   ) {}
 
-  async deploy(ref: string): Promise<{ previewUrl: string }> {
+  async deploy(ref: string): Promise<{ previewUrl: string; workingDirectory: string }> {
     const res = await fetch(this.deployWebhookUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -31,11 +34,11 @@ export class WebhookAdapter implements DeployAdapter {
     if (!body.preview_url) {
       throw new Error(`Deploy webhook response missing "preview_url" field`);
     }
-    return { previewUrl: body.preview_url };
+    return { previewUrl: body.preview_url, workingDirectory: process.cwd() };
   }
 
   async teardown(ref: string): Promise<void> {
-    if (!this.teardownWebhookUrl) return; // teardown is optional for this adapter
+    if (!this.teardownWebhookUrl) return;
     await fetch(this.teardownWebhookUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },

@@ -1,23 +1,32 @@
 /**
  * Runs `cli`-type probes: executes a built binary with each
- * configured argument set and captures its output.
+ * configured argument set, from the deployed ref's own working
+ * directory, and captures its output.
  */
 import { spawn } from "node:child_process";
+import { resolve, isAbsolute } from "node:path";
 import type { CliProbeConfig, ProbeConfig } from "../config/schema.js";
 import type { ProbeModule, ProbeOutput } from "./ProbeModule.js";
 
 export class CliProbe implements ProbeModule {
-  async run(config: ProbeConfig, _targetUrl: string): Promise<ProbeOutput> {
+  async run(config: ProbeConfig, _targetUrl: string, workingDirectory?: string): Promise<ProbeOutput> {
     if (config.type !== "cli") {
       throw new Error(`CliProbe received a non-cli config: "${config.type}"`);
     }
     const cliConfig = config as CliProbeConfig;
     const start = Date.now();
     const commandRuns: ProbeOutput["commandRuns"] = [];
+    const cwd = workingDirectory ?? process.cwd();
+    // Resolve a relative binary path against the ref's own checkout, so
+    // "./dist/mycli" means that ref's build output, not whatever's
+    // sitting in the shared top-level checkout.
+    const resolvedBinary = isAbsolute(cliConfig.binary)
+      ? cliConfig.binary
+      : resolve(cwd, cliConfig.binary);
 
     try {
       for (const command of cliConfig.commands) {
-        const result = await runOnce(cliConfig.binary, command.args, command.stdin ?? undefined);
+        const result = await runOnce(resolvedBinary, command.args, cwd, command.stdin ?? undefined);
         commandRuns.push({
           args: command.args,
           stdout: normalize(result.stdout, cliConfig.diff.normalize),
@@ -54,12 +63,9 @@ function normalize(text: string, operations: ("strip_ansi" | "strip_timestamps")
   let result = text;
   for (const op of operations) {
     if (op === "strip_ansi") {
-      // Matches standard ANSI escape sequences used for terminal color/formatting.
       result = result.replace(/\x1b\[[0-9;]*m/g, "");
     }
     if (op === "strip_timestamps") {
-      // Matches common ISO-8601-style timestamps embedded in output,
-      // e.g. "Finished at 2026-08-16T10:32:00Z".
       result = result.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z?/g, "[timestamp]");
     }
   }
@@ -69,10 +75,11 @@ function normalize(text: string, operations: ("strip_ansi" | "strip_timestamps")
 function runOnce(
   binary: string,
   args: string[],
+  cwd: string,
   stdin?: string,
 ): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, args, { timeout: 15_000 });
+    const child = spawn(binary, args, { timeout: 15_000, cwd });
     let stdout = "";
     let stderr = "";
 

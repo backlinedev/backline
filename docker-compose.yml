@@ -1,6 +1,6 @@
 services:
   app:
-    build: ./test-app
+    build: ./test-app2
     ports:
       - "${BACKLINE_PORT}:4000"
       

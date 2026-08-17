@@ -9,13 +9,34 @@ target:
 
 probes:
   - type: api
-    name: "greeting check"
+    name: "items and scoring check"
     requests:
       - method: GET
         path: /health
       - method: GET
-        path: /greeting
+        path: /items
+      - method: POST
+        path: /score
+        body:
+          itemId: 1
+      - method: POST
+        path: /score
+        body:
+          itemId: 3
     diff:
       against: base_branch
-      ignore_fields: []
-      an
+
+  - type: cli
+    name: "price analysis check"
+    binary: node
+    commands:
+      - args: ["test-app/analyze.js", "--version"]
+      - args: ["test-app/analyze.js", "--input", "test-app/fixtures/sample.json"]
+    diff:
+      against: base_branch
+
+lifecycle:
+  teardown_on: [closed]
+  idle_timeout_minutes: 60
+  fail_on: never
+  

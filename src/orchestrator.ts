@@ -24,6 +24,7 @@ export interface RunBacklineOptions {
   baseRef: string;
   /** Link to the full Job Summary — passed through to the PR comment. */
   reportUrl?: string;
+  /** If omitted, results are returned but never posted to GitHub. */
   postComment?: (body: string) => Promise<void>;
 }
 
@@ -33,17 +34,23 @@ export interface RunBacklineResult {
   jobSummaryBody: string;
 }
 
+/**
+ * Runs the full lifecycle: deploy, wait for health, probe head fully,
+ * then deploy/probe/teardown base, then diff, scrub, render, post.
+ *
+ * @remarks
+ * Head is deployed and fully probed *before* base's deploy/teardown
+ * cycle runs. With the default Compose adapter, both head and base
+ * now run as fully separate, simultaneous deployments (separate git
+ * worktrees, separate ports, separate Compose project names) — but
+ * the ordering here is kept deliberately defensive regardless, so a
+ * bug in any future adapter that reuses shared resources across refs
+ * can never tear down head's environment out from under it mid-run.
+ */
 export async function runBackline(options: RunBacklineOptions): Promise<RunBacklineResult> {
   const { config, adapter, cache, headRef, baseRef } = options;
 
-  // 1. Deploy head and run every probe against it FIRST, while it's the
-  //    only thing deployed. This matters because ComposeAdapter (the
-  //    default, zero-cloud adapter) ignores `ref` entirely and reuses
-  //    the same container/port for both head and base — so head must be
-  //    fully probed and its results captured before base's deploy or
-  //    teardown cycle ever runs, or head's container gets torn down out
-  //    from under it.
-  const { previewUrl: headUrl } = await adapter.deploy(headRef);
+  const { previewUrl: headUrl, workingDirectory: headDir } = await adapter.deploy(headRef);
   await adapter.healthCheck(
     headUrl,
     config.target.wait_for.path,
@@ -53,14 +60,11 @@ export async function runBackline(options: RunBacklineOptions): Promise<RunBackl
   const headOutputs: ProbeOutput[] = [];
   for (const probeConfig of config.probes) {
     const probeModule = resolveProbe(probeConfig.type);
-    headOutputs.push(await probeModule.run(probeConfig, headUrl));
+    headOutputs.push(await probeModule.run(probeConfig, headUrl, headDir));
   }
 
-  // 2. Only now, with head's results safely captured, deal with base.
   const baseOutputs = await getBaseOutputs(config, adapter, cache, baseRef);
 
-  // 3. Diff using the captured outputs — no more deploy/teardown calls
-  //    happen after this point, so nothing can pull the rug out.
   const results: DiffResult[] = [];
   for (const probeConfig of config.probes) {
     const headOutput = headOutputs.find((o) => o.probeName === probeConfig.name);
@@ -81,16 +85,21 @@ export async function runBackline(options: RunBacklineOptions): Promise<RunBackl
     );
   }
 
-const scrubbedResults = scrubSecrets(results);
-const commentBody = renderPrComment(scrubbedResults, options.reportUrl);
-const jobSummaryBody = renderJobSummary(scrubbedResults);
+  const scrubbedResults = scrubSecrets(results);
+  const commentBody = renderPrComment(scrubbedResults, options.reportUrl);
+  const jobSummaryBody = renderJobSummary(scrubbedResults);
 
-if (options.postComment) {
-  await options.postComment(commentBody);
+  if (options.postComment) {
+    await options.postComment(commentBody);
+  }
+
+  return { results: scrubbedResults, commentBody, jobSummaryBody };
 }
 
-return { results: scrubbedResults, commentBody, jobSummaryBody };
-
+/**
+ * Cache-first: if base-branch output already exists for this exact
+ * ref, skip deploying it again. Not exported — internal detail.
+ */
 async function getBaseOutputs(
   config: BacklineConfig,
   adapter: DeployAdapter,
@@ -103,7 +112,7 @@ async function getBaseOutputs(
     return cached.probeOutputs;
   }
 
-  const { previewUrl: baseUrl } = await adapter.deploy(baseRef);
+  const { previewUrl: baseUrl, workingDirectory: baseDir } = await adapter.deploy(baseRef);
   await adapter.healthCheck(
     baseUrl,
     config.target.wait_for.path,
@@ -113,7 +122,7 @@ async function getBaseOutputs(
   const probeOutputs: ProbeOutput[] = [];
   for (const probeConfig of config.probes) {
     const probeModule = resolveProbe(probeConfig.type);
-    probeOutputs.push(await probeModule.run(probeConfig, baseUrl));
+    probeOutputs.push(await probeModule.run(probeConfig, baseUrl, baseDir));
   }
 
   await cache.set(cacheKey, {
@@ -124,4 +133,4 @@ async function getBaseOutputs(
   await adapter.teardown(baseRef);
 
   return probeOutputs;
-}}
+}

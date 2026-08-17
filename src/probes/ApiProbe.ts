@@ -6,14 +6,7 @@ import type { ApiProbeConfig, ProbeConfig } from "../config/schema.js";
 import type { ProbeModule, ProbeOutput } from "./ProbeModule.js";
 
 export class ApiProbe implements ProbeModule {
-  /**
-   * @remarks
-   * Continues capturing whatever requests succeeded even if a later
-   * one in the list throws — the caught error is attached to the
-   * whole {@link ProbeOutput} so the diff engine reports it as
-   * `"error"` rather than silently returning partial, misleading data.
-   */
-  async run(config: ProbeConfig, targetUrl: string): Promise<ProbeOutput> {
+  async run(config: ProbeConfig, targetUrl: string, _workingDirectory?: string): Promise<ProbeOutput> {
     if (config.type !== "api") {
       throw new Error(`ApiProbe received a non-api config: "${config.type}"`);
     }

@@ -7273,7 +7273,7 @@ var ComposeAdapter = class {
       { env: { ...process.env, BACKLINE_PORT: String(port) } }
     );
     this.deployments.set(ref, { worktreePath, port, projectName });
-    return { previewUrl: `http://localhost:${port}` };
+    return { previewUrl: `http://localhost:${port}`, workingDirectory: worktreePath };
   }
   async teardown(ref) {
     const deployment = this.deployments.get(ref);
@@ -7292,11 +7292,14 @@ var ComposeAdapter = class {
         if (res.ok) return;
       } catch {
       }
-      await new Promise((r) => setTimeout(r, 1e3));
+      await sleep(1e3);
     }
     throw new DeployTimeoutError(url, timeoutMs);
   }
 };
+function sleep(ms) {
+  return new Promise((resolve2) => setTimeout(resolve2, ms));
+}
 
 // src/cache/FileCacheStore.ts
 import { readFile as readFile2, writeFile, mkdir } from "node:fs/promises";
@@ -7326,14 +7329,7 @@ var FileCacheStore = class {
 
 // src/probes/ApiProbe.ts
 var ApiProbe = class {
-  /**
-   * @remarks
-   * Continues capturing whatever requests succeeded even if a later
-   * one in the list throws — the caught error is attached to the
-   * whole {@link ProbeOutput} so the diff engine reports it as
-   * `"error"` rather than silently returning partial, misleading data.
-   */
-  async run(config, targetUrl) {
+  async run(config, targetUrl, _workingDirectory) {
     if (config.type !== "api") {
       throw new Error(`ApiProbe received a non-api config: "${config.type}"`);
     }
@@ -7382,17 +7378,20 @@ var ApiProbe = class {
 
 // src/probes/CliProbe.ts
 import { spawn } from "node:child_process";
+import { resolve, isAbsolute } from "node:path";
 var CliProbe = class {
-  async run(config, _targetUrl) {
+  async run(config, _targetUrl, workingDirectory) {
     if (config.type !== "cli") {
       throw new Error(`CliProbe received a non-cli config: "${config.type}"`);
     }
     const cliConfig = config;
     const start = Date.now();
     const commandRuns = [];
+    const cwd = workingDirectory ?? process.cwd();
+    const resolvedBinary = isAbsolute(cliConfig.binary) ? cliConfig.binary : resolve(cwd, cliConfig.binary);
     try {
       for (const command of cliConfig.commands) {
-        const result = await runOnce(cliConfig.binary, command.args, command.stdin ?? void 0);
+        const result = await runOnce(resolvedBinary, command.args, cwd, command.stdin ?? void 0);
         commandRuns.push({
           args: command.args,
           stdout: normalize(result.stdout, cliConfig.diff.normalize),
@@ -7429,15 +7428,15 @@ function normalize(text, operations) {
   }
   return result;
 }
-function runOnce(binary2, args, stdin) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(binary2, args, { timeout: 15e3 });
+function runOnce(binary2, args, cwd, stdin) {
+  return new Promise((resolve2, reject) => {
+    const child = spawn(binary2, args, { timeout: 15e3, cwd });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => stdout += chunk.toString());
     child.stderr.on("data", (chunk) => stderr += chunk.toString());
     child.on("error", reject);
-    child.on("close", (exitCode) => resolve({ stdout, stderr, exitCode }));
+    child.on("close", (exitCode) => resolve2({ stdout, stderr, exitCode }));
     if (stdin) {
       child.stdin.write(stdin);
     }
@@ -7625,7 +7624,7 @@ function stringify(value) {
 // src/orchestrator.ts
 async function runBackline(options) {
   const { config, adapter, cache, headRef, baseRef } = options;
-  const { previewUrl: headUrl } = await adapter.deploy(headRef);
+  const { previewUrl: headUrl, workingDirectory: headDir } = await adapter.deploy(headRef);
   await adapter.healthCheck(
     headUrl,
     config.target.wait_for.path,
@@ -7634,7 +7633,7 @@ async function runBackline(options) {
   const headOutputs = [];
   for (const probeConfig of config.probes) {
     const probeModule = resolveProbe(probeConfig.type);
-    headOutputs.push(await probeModule.run(probeConfig, headUrl));
+    headOutputs.push(await probeModule.run(probeConfig, headUrl, headDir));
   }
   const baseOutputs = await getBaseOutputs(config, adapter, cache, baseRef);
   const results = [];
@@ -7661,31 +7660,31 @@ async function runBackline(options) {
     await options.postComment(commentBody);
   }
   return { results: scrubbedResults, commentBody, jobSummaryBody };
-  async function getBaseOutputs(config2, adapter2, cache2, baseRef2) {
-    const cacheKey = `base-${baseRef2}`;
-    const cached = await cache2.get(cacheKey);
-    if (cached) {
-      return cached.probeOutputs;
-    }
-    const { previewUrl: baseUrl } = await adapter2.deploy(baseRef2);
-    await adapter2.healthCheck(
-      baseUrl,
-      config2.target.wait_for.path,
-      config2.target.wait_for.timeout_seconds * 1e3
-    );
-    const probeOutputs = [];
-    for (const probeConfig of config2.probes) {
-      const probeModule = resolveProbe(probeConfig.type);
-      probeOutputs.push(await probeModule.run(probeConfig, baseUrl));
-    }
-    await cache2.set(cacheKey, {
-      baseSha: baseRef2,
-      generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      probeOutputs
-    });
-    await adapter2.teardown(baseRef2);
-    return probeOutputs;
+}
+async function getBaseOutputs(config, adapter, cache, baseRef) {
+  const cacheKey = `base-${baseRef}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) {
+    return cached.probeOutputs;
   }
+  const { previewUrl: baseUrl, workingDirectory: baseDir } = await adapter.deploy(baseRef);
+  await adapter.healthCheck(
+    baseUrl,
+    config.target.wait_for.path,
+    config.target.wait_for.timeout_seconds * 1e3
+  );
+  const probeOutputs = [];
+  for (const probeConfig of config.probes) {
+    const probeModule = resolveProbe(probeConfig.type);
+    probeOutputs.push(await probeModule.run(probeConfig, baseUrl, baseDir));
+  }
+  await cache.set(cacheKey, {
+    baseSha: baseRef,
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    probeOutputs
+  });
+  await adapter.teardown(baseRef);
+  return probeOutputs;
 }
 
 // src/cli.ts

@@ -53,10 +53,10 @@ export async function validateConfigSemantics(
     }
     if (probe.type === "cli") {
       // Only check files that look like an actual path (start with
-      // ./, ../, or /) — a bare command name like "node" or "python3"
-      // is expected to be resolved from PATH at runtime, not found
-      // sitting in the repo.
-      const looksLikeAPath = /^(\.\/|\.\.\/|\/)/.test(probe.binary);
+      // ./, ../, .\, ..\, or a leading slash/backslash) — a bare
+      // command name like "node" or "python3" is expected to be
+      // resolved from PATH at runtime, not found sitting in the repo.
+      const looksLikeAPath = /^(\.[\\/]|\.\.[\\/]|[\\/])/.test(probe.binary);
       if (looksLikeAPath && !(await fileExists(probe.binary))) {
         problems.push(
           `probe "${probe.name}": binary "${probe.binary}" does not exist — did you forget to build it before running Backline?`,

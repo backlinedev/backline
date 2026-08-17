@@ -7217,7 +7217,7 @@ async function validateConfigSemantics(config, fileExists = defaultFileExists) {
       }
     }
     if (probe.type === "cli") {
-      const looksLikeAPath = /^(\.\/|\.\.\/|\/)/.test(probe.binary);
+      const looksLikeAPath = /^(\.[\\/]|\.\.[\\/]|[\\/])/.test(probe.binary);
       if (looksLikeAPath && !await fileExists(probe.binary)) {
         problems.push(
           `probe "${probe.name}": binary "${probe.binary}" does not exist \u2014 did you forget to build it before running Backline?`

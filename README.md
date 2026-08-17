@@ -131,6 +131,7 @@ This is an early, actively developed project. The following are known gaps, not 
 - Base-branch results are cached by commit SHA; a pull request left open while the base branch continues to move will not automatically refresh its comparison.
 - The diff engine performs exact-value comparison. Outputs with expected floating-point or non-deterministic variance require configuring `ignore_fields` explicitly; a tolerance-based comparison is planned but not yet implemented.
 - The default adapter deploys via Docker Compose on the runner itself. There is no built-in mechanism yet for exposing a deployed instance as a browsable link; this is planned as a near-term addition.
+- CLI probes are primarily tested against Linux CI runners (the environment GitHub Actions provides). `cross-spawn` is used internally for command resolution, which handles Windows path and shell differences, but Windows usage of the local CLI (`backline test --local`) has not been extensively verified.
 
 ## License
 

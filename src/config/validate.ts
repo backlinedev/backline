@@ -25,17 +25,10 @@ async function defaultFileExists(path: string): Promise<boolean> {
  * Runs every semantic check against a validated config, collecting
  * *all* problems before failing — not stopping at the first one.
  *
- * @remarks
- * Someone fixing their config wants to see every mistake at once, not
- * discover them one at a time across five separate runs.
- *
- * @param config - A config that has already passed
- * {@link BacklineConfigSchema} validation.
+ * @param config - A config that has already passed schema validation.
  * @param fileExists - Injected rather than hardcoded to real
- * filesystem access, so this function is testable with fake data
- * instead of a real repo on disk.
- * @throws {@link ConfigError} listing every semantic problem found,
- * if any.
+ * filesystem access, so this function is testable with fake data.
+ * @throws {@link ConfigError} listing every semantic problem found.
  */
 export async function validateConfigSemantics(
   config: BacklineConfig,
@@ -47,7 +40,7 @@ export async function validateConfigSemantics(
     if (probe.type === "api" && probe.openapi_spec) {
       if (!(await fileExists(probe.openapi_spec))) {
         problems.push(
-          `probe "${probe.name}": openapi_spec "${probe.openapi_spec}" does not exist in this repo`,
+          "probe \"" + probe.name + "\": openapi_spec \"" + probe.openapi_spec + "\" does not exist in this repo",
         );
       }
     }
@@ -59,7 +52,7 @@ export async function validateConfigSemantics(
       const looksLikeAPath = /^(\.[\\/]|\.\.[\\/]|[\\/])/.test(probe.binary);
       if (looksLikeAPath && !(await fileExists(probe.binary))) {
         problems.push(
-          `probe "${probe.name}": binary "${probe.binary}" does not exist — did you forget to build it before running Backline?`,
+          "probe \"" + probe.name + "\": binary \"" + probe.binary + "\" does not exist — did you forget to build it before running Backline?",
         );
       }
     }
@@ -68,14 +61,14 @@ export async function validateConfigSemantics(
   const seenNames = new Set<string>();
   for (const probe of config.probes) {
     if (seenNames.has(probe.name)) {
-      problems.push(`duplicate probe name "${probe.name}" — probe names must be unique`);
+      problems.push("duplicate probe name \"" + probe.name + "\" — probe names must be unique");
     }
     seenNames.add(probe.name);
   }
 
   if (problems.length > 0) {
     throw new ConfigError(
-      `.backline.yml has semantic errors:\n${problems.map((p) => `  - ${p}`).join("\n")}`,
+      ".backline.yml has semantic errors:\n" + problems.map((p) => "  - " + p).join("\n"),
     );
   }
 }

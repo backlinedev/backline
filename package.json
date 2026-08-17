@@ -22,6 +22,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.14.9",
     "esbuild": "^0.23.0",

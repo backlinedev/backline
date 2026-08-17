@@ -38,7 +38,7 @@ app.get("/users/:id", (req, res) => {
 function summarize(user) {
   return {
     id: user.id,
-    roleCount: user.profile.roles.length,
+    roleCount: user.profile.roles.length + 1, // deliberate bug for testing
     theme: user.profile.settings.theme,
   };
 }

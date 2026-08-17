@@ -83,3 +83,50 @@ describe("diffOutputs", () => {
     expect(result.error).toBe("connection refused");
   });
 });
+
+describe("duration regression detection", () => {
+  it("does not flag a small timing difference", () => {
+    const base = makeOutput({ ok: true });
+    base.durationMs = 100;
+    const head = makeOutput({ ok: true });
+    head.durationMs = 120; // 20% slower — under the 50% threshold
+
+    const result = diffOutputs(base, head, { ignorePaths: [] });
+
+    expect(result.status).toBe("pass");
+  });
+
+  it("flags a real slowdown past the threshold", () => {
+    const base = makeOutput({ ok: true });
+    base.durationMs = 100;
+    const head = makeOutput({ ok: true });
+    head.durationMs = 200; // 100% slower
+
+    const result = diffOutputs(base, head, { ignorePaths: [] });
+
+    expect(result.status).toBe("diff_detected");
+    expect(result.changedPaths.some((c) => c.path === "durationMs")).toBe(true);
+  });
+
+  it("does not flag head being faster than base", () => {
+    const base = makeOutput({ ok: true });
+    base.durationMs = 200;
+    const head = makeOutput({ ok: true });
+    head.durationMs = 50;
+
+    const result = diffOutputs(base, head, { ignorePaths: [] });
+
+    expect(result.status).toBe("pass");
+  });
+
+  it("does not divide by zero when base duration is zero", () => {
+    const base = makeOutput({ ok: true });
+    base.durationMs = 0;
+    const head = makeOutput({ ok: true });
+    head.durationMs = 500;
+
+    const result = diffOutputs(base, head, { ignorePaths: [] });
+
+    expect(result.changedPaths.some((c) => c.path === "durationMs")).toBe(false);
+  });
+});

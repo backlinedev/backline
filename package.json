@@ -1,5 +1,5 @@
 {
-  "name": "backline",
+  "name": "@backlinedev/backline",
   "version": "1.0.0",
   "description": "Runtime behavior previews for pull requests - compare API and CLI outputs between PR and base branch",
   "license": "MIT",
@@ -23,7 +23,7 @@
   "author": "Ummara Ali Syeda <syeda.umm@northeastern.edu>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/backlinedev/backline.git"
+    "url": "git+https://github.com/backlinedev/backline.git"
   },
   "homepage": "https://github.com/backlinedev/backline#readme",
   "bugs": {

@@ -2,9 +2,9 @@
 
 **Runtime behavior previews for pull requests.**
 
-[![CI](https://img.shields.io/github/actions/workflow/status/backlinedev/backline/backline.yml?branch=main&label=CI)](https://github.com/backlinedev/backline/actions)
-[![License](https://img.shields.io/github/license/backlinedev/backline)](LICENSE)
-[![npm](https://img.shields.io/npm/v/backline)](https://www.npmjs.com/package/backline)
+[![npm version](https://img.shields.io/npm/v/@backlinedev/backline?color=blue)](https://www.npmjs.com/package/@backlinedev/backline)
+[![npm downloads](https://img.shields.io/npm/dm/@backlinedev/backline)](https://www.npmjs.com/package/@backlinedev/backline)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-informational)](package.json)
 
 Backline deploys a pull request's branch and its base branch, runs the same checks against both, and reports what the code actually does differently at runtime — not what changed in the diff, but what changed in behavior. It works for APIs and command-line tools, requires no database, no hosted service, and no account of any kind. Everything runs inside your own CI job.
@@ -123,7 +123,7 @@ jobs:
 From the command line:
 
 ```bash
-npm install -g backline
+npm install -g @backlinedev/backline
 
 # Initialize (auto-detects framework)
 backline init

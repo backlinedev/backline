@@ -17,7 +17,7 @@ No installation needed! Just add a workflow file.
 ### As a CLI tool
 
 ```bash
-npm install -g backline
+npm install -g @backlinedev/backline
 # or
 npx backline --version
 ```

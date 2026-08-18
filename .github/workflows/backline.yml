@@ -21,6 +21,6 @@ jobs:
           fetch-depth: 0
       - uses: ./
         with:
-          config: .backline.yml
+          config: examples/01-express-api/.backline.yml
           github-token: ${{ secrets.GITHUB_TOKEN }}
           

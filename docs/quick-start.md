@@ -22,9 +22,21 @@ npm install -g backline
 npx backline --version
 ```
 
-## Step 2: Create `.backline.yml`
+## Step 2: Initialize Backline
 
-In your repository root, create `.backline.yml`:
+The easiest way to get started is with the `init` command:
+
+```bash
+npx backline init
+```
+
+This will:
+1. Detect your framework (Next.js, Express, FastAPI, Rails, CLI)
+2. Generate `.backline.yml` with framework-specific defaults
+3. Create `.github/workflows/backline.yml`
+4. Prompt you to customize endpoints/commands
+
+Or manually create `.backline.yml`:
 
 ### For an API
 

@@ -14,7 +14,7 @@ Backline deploys a pull request's branch and its base branch, runs the same chec
 GitHub already shows you what changed in the source. It cannot show you what that change actually does once it runs. Backline exists specifically for the gap between the two:
 
 - **Runtime, not source.** A dependency bump, a config change, or a "no-op" refactor can silently alter behavior without a single meaningful line in a diff. Backline catches exactly this class of change, because it never reads your source — it calls the running code and compares what comes back.
-- **APIs and CLIs, natively.** Two first-class probe types: fire a set of HTTP requests at a deployed instance, or run a built binary with a set of arguments. Both diff their output against the same code running on the base branch.
+- **APIs, CLIs, GraphQL, and Databases.** Four probe types: HTTP APIs, command-line tools, GraphQL queries, and direct database queries. All diff their output against the same code running on the base branch.
 - **Zero infrastructure.** No managed database, no hosted control plane, no vendor account. State that needs to persist between runs is a single cached JSON file. Credentials are never touched, stored, or logged by Backline — they pass through from your own CI secrets or a local env file, exactly as they would for any other step in your pipeline.
 - **Pluggable by design.** The deploy mechanism, the probe types, and the diff strategy are each isolated behind a small interface. The default deploy adapter is Docker Compose; anything that already deploys your PRs can be wired in behind the same interface without touching the rest of the system.
 - **A real comparison, not two copies of the same thing.** Head and base are checked out into isolated git worktrees and run as fully independent, simultaneous deployments — not the same build probed twice.
@@ -61,13 +61,40 @@ probes:
       - args: ["--version"]
     diff:
       against: base_branch
+
+  - type: graphql
+    name: user queries
+    endpoint: /graphql
+    queries:
+      - query: "{ user(id: 1) { name email } }"
+    diff:
+      against: base_branch
+
+  - type: database
+    name: user count
+    connection: $DATABASE_URL
+    queries:
+      - sql: "SELECT COUNT(*) FROM users WHERE active = true"
+    diff:
+      against: base_branch
 ```
 
-The full schema, including cross-repository dependencies and lifecycle controls, is documented in `.backline.yml.example`.
+The full schema is documented in [docs/config-reference.md](docs/config-reference.md).
 
-## Usage
+## Quick Start
 
-As a GitHub Action:
+Initialize Backline in your project (auto-detects framework):
+
+```bash
+npx backline init
+```
+
+This will:
+- Detect your framework (Next.js, Express, FastAPI, Rails, CLI)
+- Generate `.backline.yml` with sensible defaults
+- Create `.github/workflows/backline.yml`
+
+Or manually create `.backline.yml` and use as a GitHub Action:
 
 ```yaml
 name: Backline
@@ -93,10 +120,21 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-From the command line, without CI:
+From the command line:
 
 ```bash
 npm install -g backline
+
+# Initialize (auto-detects framework)
+backline init
+
+# Validate configuration
+backline validate
+
+# Generate probes from OpenAPI spec
+backline generate --spec openapi.yaml
+
+# Test locally without CI
 backline test --config .backline.yml --head-ref HEAD --base-ref main
 ```
 
@@ -115,12 +153,14 @@ npm run build
 |---|---|
 | `src/config` | Schema, loading, and semantic validation for `.backline.yml` |
 | `src/diff` | Structural comparison between two probe results |
-| `src/probes` | API and CLI probe implementations and the type registry |
-| `src/adapters` | Deploy adapters — Docker Compose by default, a generic webhook adapter for existing pipelines |
+| `src/probes` | API, CLI, GraphQL, and Database probe implementations |
+| `src/adapters` | Deploy adapters — Docker Compose by default, webhook for custom pipelines |
 | `src/cache` | File-backed storage for base-branch results between runs |
-| `src/render` | Secret redaction and comment formatting |
+| `src/render` | Secret redaction and enhanced visual diff formatting |
 | `src/github` | The single Octokit client every other file goes through |
 | `src/orchestrator.ts` | The run lifecycle, wiring every component above together |
+| `src/init` | Framework detection and interactive setup |
+| `src/openapi` | OpenAPI spec parsing and probe generation |
 
 A full architectural writeup, including the interface contracts each component satisfies, is in `backline-architecture.md`.
 

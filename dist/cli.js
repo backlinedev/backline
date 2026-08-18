@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { createRequire } from 'module';const require = createRequire(import.meta.url);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -11,6 +12,9 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
   if (typeof require !== "undefined") return require.apply(this, arguments);
   throw Error('Dynamic require of "' + x + '" is not supported');
 });
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __commonJS = (cb, mod) => function __require2() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
@@ -35,514 +39,10 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// node_modules/isexe/windows.js
-var require_windows = __commonJS({
-  "node_modules/isexe/windows.js"(exports, module) {
-    module.exports = isexe;
-    isexe.sync = sync;
-    var fs = __require("fs");
-    function checkPathExt(path, options) {
-      var pathext = options.pathExt !== void 0 ? options.pathExt : process.env.PATHEXT;
-      if (!pathext) {
-        return true;
-      }
-      pathext = pathext.split(";");
-      if (pathext.indexOf("") !== -1) {
-        return true;
-      }
-      for (var i = 0; i < pathext.length; i++) {
-        var p = pathext[i].toLowerCase();
-        if (p && path.substr(-p.length).toLowerCase() === p) {
-          return true;
-        }
-      }
-      return false;
-    }
-    function checkStat(stat, path, options) {
-      if (!stat.isSymbolicLink() && !stat.isFile()) {
-        return false;
-      }
-      return checkPathExt(path, options);
-    }
-    function isexe(path, options, cb) {
-      fs.stat(path, function(er, stat) {
-        cb(er, er ? false : checkStat(stat, path, options));
-      });
-    }
-    function sync(path, options) {
-      return checkStat(fs.statSync(path), path, options);
-    }
-  }
-});
-
-// node_modules/isexe/mode.js
-var require_mode = __commonJS({
-  "node_modules/isexe/mode.js"(exports, module) {
-    module.exports = isexe;
-    isexe.sync = sync;
-    var fs = __require("fs");
-    function isexe(path, options, cb) {
-      fs.stat(path, function(er, stat) {
-        cb(er, er ? false : checkStat(stat, options));
-      });
-    }
-    function sync(path, options) {
-      return checkStat(fs.statSync(path), options);
-    }
-    function checkStat(stat, options) {
-      return stat.isFile() && checkMode(stat, options);
-    }
-    function checkMode(stat, options) {
-      var mod = stat.mode;
-      var uid = stat.uid;
-      var gid = stat.gid;
-      var myUid = options.uid !== void 0 ? options.uid : process.getuid && process.getuid();
-      var myGid = options.gid !== void 0 ? options.gid : process.getgid && process.getgid();
-      var u = parseInt("100", 8);
-      var g = parseInt("010", 8);
-      var o = parseInt("001", 8);
-      var ug = u | g;
-      var ret = mod & o || mod & g && gid === myGid || mod & u && uid === myUid || mod & ug && myUid === 0;
-      return ret;
-    }
-  }
-});
-
-// node_modules/isexe/index.js
-var require_isexe = __commonJS({
-  "node_modules/isexe/index.js"(exports, module) {
-    var fs = __require("fs");
-    var core2;
-    if (process.platform === "win32" || global.TESTING_WINDOWS) {
-      core2 = require_windows();
-    } else {
-      core2 = require_mode();
-    }
-    module.exports = isexe;
-    isexe.sync = sync;
-    function isexe(path, options, cb) {
-      if (typeof options === "function") {
-        cb = options;
-        options = {};
-      }
-      if (!cb) {
-        if (typeof Promise !== "function") {
-          throw new TypeError("callback not provided");
-        }
-        return new Promise(function(resolve2, reject) {
-          isexe(path, options || {}, function(er, is) {
-            if (er) {
-              reject(er);
-            } else {
-              resolve2(is);
-            }
-          });
-        });
-      }
-      core2(path, options || {}, function(er, is) {
-        if (er) {
-          if (er.code === "EACCES" || options && options.ignoreErrors) {
-            er = null;
-            is = false;
-          }
-        }
-        cb(er, is);
-      });
-    }
-    function sync(path, options) {
-      try {
-        return core2.sync(path, options || {});
-      } catch (er) {
-        if (options && options.ignoreErrors || er.code === "EACCES") {
-          return false;
-        } else {
-          throw er;
-        }
-      }
-    }
-  }
-});
-
-// node_modules/which/which.js
-var require_which = __commonJS({
-  "node_modules/which/which.js"(exports, module) {
-    var isWindows = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys";
-    var path = __require("path");
-    var COLON = isWindows ? ";" : ":";
-    var isexe = require_isexe();
-    var getNotFoundError = (cmd) => Object.assign(new Error(`not found: ${cmd}`), { code: "ENOENT" });
-    var getPathInfo = (cmd, opt) => {
-      const colon = opt.colon || COLON;
-      const pathEnv = cmd.match(/\//) || isWindows && cmd.match(/\\/) ? [""] : [
-        // windows always checks the cwd first
-        ...isWindows ? [process.cwd()] : [],
-        ...(opt.path || process.env.PATH || /* istanbul ignore next: very unusual */
-        "").split(colon)
-      ];
-      const pathExtExe = isWindows ? opt.pathExt || process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM" : "";
-      const pathExt = isWindows ? pathExtExe.split(colon) : [""];
-      if (isWindows) {
-        if (cmd.indexOf(".") !== -1 && pathExt[0] !== "")
-          pathExt.unshift("");
-      }
-      return {
-        pathEnv,
-        pathExt,
-        pathExtExe
-      };
-    };
-    var which = (cmd, opt, cb) => {
-      if (typeof opt === "function") {
-        cb = opt;
-        opt = {};
-      }
-      if (!opt)
-        opt = {};
-      const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt);
-      const found = [];
-      const step = (i) => new Promise((resolve2, reject) => {
-        if (i === pathEnv.length)
-          return opt.all && found.length ? resolve2(found) : reject(getNotFoundError(cmd));
-        const ppRaw = pathEnv[i];
-        const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path.join(pathPart, cmd);
-        const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
-        resolve2(subStep(p, i, 0));
-      });
-      const subStep = (p, i, ii) => new Promise((resolve2, reject) => {
-        if (ii === pathExt.length)
-          return resolve2(step(i + 1));
-        const ext = pathExt[ii];
-        isexe(p + ext, { pathExt: pathExtExe }, (er, is) => {
-          if (!er && is) {
-            if (opt.all)
-              found.push(p + ext);
-            else
-              return resolve2(p + ext);
-          }
-          return resolve2(subStep(p, i, ii + 1));
-        });
-      });
-      return cb ? step(0).then((res) => cb(null, res), cb) : step(0);
-    };
-    var whichSync = (cmd, opt) => {
-      opt = opt || {};
-      const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt);
-      const found = [];
-      for (let i = 0; i < pathEnv.length; i++) {
-        const ppRaw = pathEnv[i];
-        const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path.join(pathPart, cmd);
-        const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
-        for (let j = 0; j < pathExt.length; j++) {
-          const cur = p + pathExt[j];
-          try {
-            const is = isexe.sync(cur, { pathExt: pathExtExe });
-            if (is) {
-              if (opt.all)
-                found.push(cur);
-              else
-                return cur;
-            }
-          } catch (ex) {
-          }
-        }
-      }
-      if (opt.all && found.length)
-        return found;
-      if (opt.nothrow)
-        return null;
-      throw getNotFoundError(cmd);
-    };
-    module.exports = which;
-    which.sync = whichSync;
-  }
-});
-
-// node_modules/path-key/index.js
-var require_path_key = __commonJS({
-  "node_modules/path-key/index.js"(exports, module) {
-    "use strict";
-    var pathKey = (options = {}) => {
-      const environment = options.env || process.env;
-      const platform = options.platform || process.platform;
-      if (platform !== "win32") {
-        return "PATH";
-      }
-      return Object.keys(environment).reverse().find((key) => key.toUpperCase() === "PATH") || "Path";
-    };
-    module.exports = pathKey;
-    module.exports.default = pathKey;
-  }
-});
-
-// node_modules/cross-spawn/lib/util/resolveCommand.js
-var require_resolveCommand = __commonJS({
-  "node_modules/cross-spawn/lib/util/resolveCommand.js"(exports, module) {
-    "use strict";
-    var path = __require("path");
-    var which = require_which();
-    var getPathKey = require_path_key();
-    function resolveCommandAttempt(parsed, withoutPathExt) {
-      const env = parsed.options.env || process.env;
-      const cwd = process.cwd();
-      const hasCustomCwd = parsed.options.cwd != null;
-      const shouldSwitchCwd = hasCustomCwd && process.chdir !== void 0 && !process.chdir.disabled;
-      if (shouldSwitchCwd) {
-        try {
-          process.chdir(parsed.options.cwd);
-        } catch (err) {
-        }
-      }
-      let resolved;
-      try {
-        resolved = which.sync(parsed.command, {
-          path: env[getPathKey({ env })],
-          pathExt: withoutPathExt ? path.delimiter : void 0
-        });
-      } catch (e) {
-      } finally {
-        if (shouldSwitchCwd) {
-          process.chdir(cwd);
-        }
-      }
-      if (resolved) {
-        resolved = path.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
-      }
-      return resolved;
-    }
-    function resolveCommand(parsed) {
-      return resolveCommandAttempt(parsed) || resolveCommandAttempt(parsed, true);
-    }
-    module.exports = resolveCommand;
-  }
-});
-
-// node_modules/cross-spawn/lib/util/escape.js
-var require_escape = __commonJS({
-  "node_modules/cross-spawn/lib/util/escape.js"(exports, module) {
-    "use strict";
-    var metaCharsRegExp = /([()\][%!^"`<>&|;, *?])/g;
-    function escapeCommand(arg) {
-      arg = arg.replace(metaCharsRegExp, "^$1");
-      return arg;
-    }
-    function escapeArgument(arg, doubleEscapeMetaChars) {
-      arg = `${arg}`;
-      arg = arg.replace(/(?=(\\+?)?)\1"/g, '$1$1\\"');
-      arg = arg.replace(/(?=(\\+?)?)\1$/, "$1$1");
-      arg = `"${arg}"`;
-      arg = arg.replace(metaCharsRegExp, "^$1");
-      if (doubleEscapeMetaChars) {
-        arg = arg.replace(metaCharsRegExp, "^$1");
-      }
-      return arg;
-    }
-    module.exports.command = escapeCommand;
-    module.exports.argument = escapeArgument;
-  }
-});
-
-// node_modules/shebang-regex/index.js
-var require_shebang_regex = __commonJS({
-  "node_modules/shebang-regex/index.js"(exports, module) {
-    "use strict";
-    module.exports = /^#!(.*)/;
-  }
-});
-
-// node_modules/shebang-command/index.js
-var require_shebang_command = __commonJS({
-  "node_modules/shebang-command/index.js"(exports, module) {
-    "use strict";
-    var shebangRegex = require_shebang_regex();
-    module.exports = (string = "") => {
-      const match = string.match(shebangRegex);
-      if (!match) {
-        return null;
-      }
-      const [path, argument] = match[0].replace(/#! ?/, "").split(" ");
-      const binary2 = path.split("/").pop();
-      if (binary2 === "env") {
-        return argument;
-      }
-      return argument ? `${binary2} ${argument}` : binary2;
-    };
-  }
-});
-
-// node_modules/cross-spawn/lib/util/readShebang.js
-var require_readShebang = __commonJS({
-  "node_modules/cross-spawn/lib/util/readShebang.js"(exports, module) {
-    "use strict";
-    var fs = __require("fs");
-    var shebangCommand = require_shebang_command();
-    function readShebang(command) {
-      const size = 150;
-      const buffer = Buffer.alloc(size);
-      let fd;
-      try {
-        fd = fs.openSync(command, "r");
-        fs.readSync(fd, buffer, 0, size, 0);
-        fs.closeSync(fd);
-      } catch (e) {
-      }
-      return shebangCommand(buffer.toString());
-    }
-    module.exports = readShebang;
-  }
-});
-
-// node_modules/cross-spawn/lib/parse.js
-var require_parse = __commonJS({
-  "node_modules/cross-spawn/lib/parse.js"(exports, module) {
-    "use strict";
-    var path = __require("path");
-    var resolveCommand = require_resolveCommand();
-    var escape = require_escape();
-    var readShebang = require_readShebang();
-    var isWin = process.platform === "win32";
-    var isExecutableRegExp = /\.(?:com|exe)$/i;
-    var isCmdShimRegExp = /node_modules[\\/].bin[\\/][^\\/]+\.cmd$/i;
-    function detectShebang(parsed) {
-      parsed.file = resolveCommand(parsed);
-      const shebang = parsed.file && readShebang(parsed.file);
-      if (shebang) {
-        parsed.args.unshift(parsed.file);
-        parsed.command = shebang;
-        return resolveCommand(parsed);
-      }
-      return parsed.file;
-    }
-    function parseNonShell(parsed) {
-      if (!isWin) {
-        return parsed;
-      }
-      const commandFile = detectShebang(parsed);
-      const needsShell = !isExecutableRegExp.test(commandFile);
-      if (parsed.options.forceShell || needsShell) {
-        const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
-        parsed.command = path.normalize(parsed.command);
-        parsed.command = escape.command(parsed.command);
-        parsed.args = parsed.args.map((arg) => escape.argument(arg, needsDoubleEscapeMetaChars));
-        const shellCommand = [parsed.command].concat(parsed.args).join(" ");
-        parsed.args = ["/d", "/s", "/c", `"${shellCommand}"`];
-        parsed.command = process.env.comspec || "cmd.exe";
-        parsed.options.windowsVerbatimArguments = true;
-      }
-      return parsed;
-    }
-    function parse(command, args, options) {
-      if (args && !Array.isArray(args)) {
-        options = args;
-        args = null;
-      }
-      args = args ? args.slice(0) : [];
-      options = Object.assign({}, options);
-      const parsed = {
-        command,
-        args,
-        options,
-        file: void 0,
-        original: {
-          command,
-          args
-        }
-      };
-      return options.shell ? parsed : parseNonShell(parsed);
-    }
-    module.exports = parse;
-  }
-});
-
-// node_modules/cross-spawn/lib/enoent.js
-var require_enoent = __commonJS({
-  "node_modules/cross-spawn/lib/enoent.js"(exports, module) {
-    "use strict";
-    var isWin = process.platform === "win32";
-    function notFoundError(original, syscall) {
-      return Object.assign(new Error(`${syscall} ${original.command} ENOENT`), {
-        code: "ENOENT",
-        errno: "ENOENT",
-        syscall: `${syscall} ${original.command}`,
-        path: original.command,
-        spawnargs: original.args
-      });
-    }
-    function hookChildProcess(cp, parsed) {
-      if (!isWin) {
-        return;
-      }
-      const originalEmit = cp.emit;
-      cp.emit = function(name, arg1) {
-        if (name === "exit") {
-          const err = verifyENOENT(arg1, parsed);
-          if (err) {
-            return originalEmit.call(cp, "error", err);
-          }
-        }
-        return originalEmit.apply(cp, arguments);
-      };
-    }
-    function verifyENOENT(status, parsed) {
-      if (isWin && status === 1 && !parsed.file) {
-        return notFoundError(parsed.original, "spawn");
-      }
-      return null;
-    }
-    function verifyENOENTSync(status, parsed) {
-      if (isWin && status === 1 && !parsed.file) {
-        return notFoundError(parsed.original, "spawnSync");
-      }
-      return null;
-    }
-    module.exports = {
-      hookChildProcess,
-      verifyENOENT,
-      verifyENOENTSync,
-      notFoundError
-    };
-  }
-});
-
-// node_modules/cross-spawn/index.js
-var require_cross_spawn = __commonJS({
-  "node_modules/cross-spawn/index.js"(exports, module) {
-    "use strict";
-    var cp = __require("child_process");
-    var parse = require_parse();
-    var enoent = require_enoent();
-    function spawn2(command, args, options) {
-      const parsed = parse(command, args, options);
-      const spawned = cp.spawn(parsed.command, parsed.args, parsed.options);
-      enoent.hookChildProcess(spawned, parsed);
-      return spawned;
-    }
-    function spawnSync(command, args, options) {
-      const parsed = parse(command, args, options);
-      const result = cp.spawnSync(parsed.command, parsed.args, parsed.options);
-      result.error = result.error || enoent.verifyENOENTSync(result.status, parsed);
-      return result;
-    }
-    module.exports = spawn2;
-    module.exports.spawn = spawn2;
-    module.exports.sync = spawnSync;
-    module.exports._parse = parse;
-    module.exports._enoent = enoent;
-  }
-});
-
-// src/config/loader.ts
-import { readFile } from "node:fs/promises";
-
 // node_modules/js-yaml/dist/js-yaml.mjs
 function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
 }
-var jsYaml = {};
-var loader = {};
-var common = {};
-var hasRequiredCommon;
 function requireCommon() {
   if (hasRequiredCommon) return common;
   hasRequiredCommon = 1;
@@ -585,8 +85,6 @@ function requireCommon() {
   common.extend = extend;
   return common;
 }
-var exception;
-var hasRequiredException;
 function requireException() {
   if (hasRequiredException) return exception;
   hasRequiredException = 1;
@@ -623,8 +121,6 @@ function requireException() {
   exception = YAMLException2;
   return exception;
 }
-var snippet;
-var hasRequiredSnippet;
 function requireSnippet() {
   if (hasRequiredSnippet) return snippet;
   hasRequiredSnippet = 1;
@@ -703,8 +199,6 @@ function requireSnippet() {
   snippet = makeSnippet;
   return snippet;
 }
-var type;
-var hasRequiredType;
 function requireType() {
   if (hasRequiredType) return type;
   hasRequiredType = 1;
@@ -767,8 +261,6 @@ function requireType() {
   type = Type2;
   return type;
 }
-var schema;
-var hasRequiredSchema;
 function requireSchema() {
   if (hasRequiredSchema) return schema;
   hasRequiredSchema = 1;
@@ -856,8 +348,6 @@ function requireSchema() {
   schema = Schema2;
   return schema;
 }
-var str;
-var hasRequiredStr;
 function requireStr() {
   if (hasRequiredStr) return str;
   hasRequiredStr = 1;
@@ -870,8 +360,6 @@ function requireStr() {
   });
   return str;
 }
-var seq;
-var hasRequiredSeq;
 function requireSeq() {
   if (hasRequiredSeq) return seq;
   hasRequiredSeq = 1;
@@ -884,8 +372,6 @@ function requireSeq() {
   });
   return seq;
 }
-var map;
-var hasRequiredMap;
 function requireMap() {
   if (hasRequiredMap) return map;
   hasRequiredMap = 1;
@@ -898,8 +384,6 @@ function requireMap() {
   });
   return map;
 }
-var failsafe;
-var hasRequiredFailsafe;
 function requireFailsafe() {
   if (hasRequiredFailsafe) return failsafe;
   hasRequiredFailsafe = 1;
@@ -913,8 +397,6 @@ function requireFailsafe() {
   });
   return failsafe;
 }
-var _null;
-var hasRequired_null;
 function require_null() {
   if (hasRequired_null) return _null;
   hasRequired_null = 1;
@@ -956,8 +438,6 @@ function require_null() {
   });
   return _null;
 }
-var bool;
-var hasRequiredBool;
 function requireBool() {
   if (hasRequiredBool) return bool;
   hasRequiredBool = 1;
@@ -993,8 +473,6 @@ function requireBool() {
   });
   return bool;
 }
-var int;
-var hasRequiredInt;
 function requireInt() {
   if (hasRequiredInt) return int;
   hasRequiredInt = 1;
@@ -1109,8 +587,6 @@ function requireInt() {
   });
   return int;
 }
-var float;
-var hasRequiredFloat;
 function requireFloat() {
   if (hasRequiredFloat) return float;
   hasRequiredFloat = 1;
@@ -1194,8 +670,6 @@ function requireFloat() {
   });
   return float;
 }
-var json;
-var hasRequiredJson;
 function requireJson() {
   if (hasRequiredJson) return json;
   hasRequiredJson = 1;
@@ -1209,16 +683,12 @@ function requireJson() {
   });
   return json;
 }
-var core;
-var hasRequiredCore;
 function requireCore() {
   if (hasRequiredCore) return core;
   hasRequiredCore = 1;
   core = requireJson();
   return core;
 }
-var timestamp;
-var hasRequiredTimestamp;
 function requireTimestamp() {
   if (hasRequiredTimestamp) return timestamp;
   hasRequiredTimestamp = 1;
@@ -1279,8 +749,6 @@ function requireTimestamp() {
   });
   return timestamp;
 }
-var merge;
-var hasRequiredMerge;
 function requireMerge() {
   if (hasRequiredMerge) return merge;
   hasRequiredMerge = 1;
@@ -1294,8 +762,6 @@ function requireMerge() {
   });
   return merge;
 }
-var binary;
-var hasRequiredBinary;
 function requireBinary() {
   if (hasRequiredBinary) return binary;
   hasRequiredBinary = 1;
@@ -1386,8 +852,6 @@ function requireBinary() {
   });
   return binary;
 }
-var omap;
-var hasRequiredOmap;
 function requireOmap() {
   if (hasRequiredOmap) return omap;
   hasRequiredOmap = 1;
@@ -1425,8 +889,6 @@ function requireOmap() {
   });
   return omap;
 }
-var pairs;
-var hasRequiredPairs;
 function requirePairs() {
   if (hasRequiredPairs) return pairs;
   hasRequiredPairs = 1;
@@ -1463,8 +925,6 @@ function requirePairs() {
   });
   return pairs;
 }
-var set;
-var hasRequiredSet;
 function requireSet() {
   if (hasRequiredSet) return set;
   hasRequiredSet = 1;
@@ -1490,8 +950,6 @@ function requireSet() {
   });
   return set;
 }
-var _default;
-var hasRequired_default;
 function require_default() {
   if (hasRequired_default) return _default;
   hasRequired_default = 1;
@@ -1509,7 +967,6 @@ function require_default() {
   });
   return _default;
 }
-var hasRequiredLoader;
 function requireLoader() {
   if (hasRequiredLoader) return loader;
   hasRequiredLoader = 1;
@@ -2880,8 +2337,6 @@ function requireLoader() {
   loader.load = load2;
   return loader;
 }
-var dumper = {};
-var hasRequiredDumper;
 function requireDumper() {
   if (hasRequiredDumper) return dumper;
   hasRequiredDumper = 1;
@@ -3533,7 +2988,6 @@ function requireDumper() {
   dumper.dump = dump2;
   return dumper;
 }
-var hasRequiredJsYaml;
 function requireJsYaml() {
   if (hasRequiredJsYaml) return jsYaml;
   hasRequiredJsYaml = 1;
@@ -3574,24 +3028,801 @@ function requireJsYaml() {
   jsYaml.safeDump = renamed("safeDump", "dump");
   return jsYaml;
 }
-var jsYamlExports = requireJsYaml();
-var yaml = /* @__PURE__ */ getDefaultExportFromCjs(jsYamlExports);
-var {
-  Type,
-  Schema,
-  FAILSAFE_SCHEMA,
-  JSON_SCHEMA,
-  CORE_SCHEMA,
-  DEFAULT_SCHEMA,
-  load,
-  loadAll,
-  dump,
-  YAMLException,
-  types,
-  safeLoad,
-  safeLoadAll,
-  safeDump
-} = yaml;
+var jsYaml, loader, common, hasRequiredCommon, exception, hasRequiredException, snippet, hasRequiredSnippet, type, hasRequiredType, schema, hasRequiredSchema, str, hasRequiredStr, seq, hasRequiredSeq, map, hasRequiredMap, failsafe, hasRequiredFailsafe, _null, hasRequired_null, bool, hasRequiredBool, int, hasRequiredInt, float, hasRequiredFloat, json, hasRequiredJson, core, hasRequiredCore, timestamp, hasRequiredTimestamp, merge, hasRequiredMerge, binary, hasRequiredBinary, omap, hasRequiredOmap, pairs, hasRequiredPairs, set, hasRequiredSet, _default, hasRequired_default, hasRequiredLoader, dumper, hasRequiredDumper, hasRequiredJsYaml, jsYamlExports, yaml, Type, Schema, FAILSAFE_SCHEMA, JSON_SCHEMA, CORE_SCHEMA, DEFAULT_SCHEMA, load, loadAll, dump, YAMLException, types, safeLoad, safeLoadAll, safeDump;
+var init_js_yaml = __esm({
+  "node_modules/js-yaml/dist/js-yaml.mjs"() {
+    jsYaml = {};
+    loader = {};
+    common = {};
+    dumper = {};
+    jsYamlExports = requireJsYaml();
+    yaml = /* @__PURE__ */ getDefaultExportFromCjs(jsYamlExports);
+    ({
+      Type,
+      Schema,
+      FAILSAFE_SCHEMA,
+      JSON_SCHEMA,
+      CORE_SCHEMA,
+      DEFAULT_SCHEMA,
+      load,
+      loadAll,
+      dump,
+      YAMLException,
+      types,
+      safeLoad,
+      safeLoadAll,
+      safeDump
+    } = yaml);
+  }
+});
+
+// node_modules/isexe/windows.js
+var require_windows = __commonJS({
+  "node_modules/isexe/windows.js"(exports, module) {
+    module.exports = isexe;
+    isexe.sync = sync;
+    var fs = __require("fs");
+    function checkPathExt(path, options) {
+      var pathext = options.pathExt !== void 0 ? options.pathExt : process.env.PATHEXT;
+      if (!pathext) {
+        return true;
+      }
+      pathext = pathext.split(";");
+      if (pathext.indexOf("") !== -1) {
+        return true;
+      }
+      for (var i = 0; i < pathext.length; i++) {
+        var p = pathext[i].toLowerCase();
+        if (p && path.substr(-p.length).toLowerCase() === p) {
+          return true;
+        }
+      }
+      return false;
+    }
+    function checkStat(stat, path, options) {
+      if (!stat.isSymbolicLink() && !stat.isFile()) {
+        return false;
+      }
+      return checkPathExt(path, options);
+    }
+    function isexe(path, options, cb) {
+      fs.stat(path, function(er, stat) {
+        cb(er, er ? false : checkStat(stat, path, options));
+      });
+    }
+    function sync(path, options) {
+      return checkStat(fs.statSync(path), path, options);
+    }
+  }
+});
+
+// node_modules/isexe/mode.js
+var require_mode = __commonJS({
+  "node_modules/isexe/mode.js"(exports, module) {
+    module.exports = isexe;
+    isexe.sync = sync;
+    var fs = __require("fs");
+    function isexe(path, options, cb) {
+      fs.stat(path, function(er, stat) {
+        cb(er, er ? false : checkStat(stat, options));
+      });
+    }
+    function sync(path, options) {
+      return checkStat(fs.statSync(path), options);
+    }
+    function checkStat(stat, options) {
+      return stat.isFile() && checkMode(stat, options);
+    }
+    function checkMode(stat, options) {
+      var mod = stat.mode;
+      var uid = stat.uid;
+      var gid = stat.gid;
+      var myUid = options.uid !== void 0 ? options.uid : process.getuid && process.getuid();
+      var myGid = options.gid !== void 0 ? options.gid : process.getgid && process.getgid();
+      var u = parseInt("100", 8);
+      var g = parseInt("010", 8);
+      var o = parseInt("001", 8);
+      var ug = u | g;
+      var ret = mod & o || mod & g && gid === myGid || mod & u && uid === myUid || mod & ug && myUid === 0;
+      return ret;
+    }
+  }
+});
+
+// node_modules/isexe/index.js
+var require_isexe = __commonJS({
+  "node_modules/isexe/index.js"(exports, module) {
+    var fs = __require("fs");
+    var core2;
+    if (process.platform === "win32" || global.TESTING_WINDOWS) {
+      core2 = require_windows();
+    } else {
+      core2 = require_mode();
+    }
+    module.exports = isexe;
+    isexe.sync = sync;
+    function isexe(path, options, cb) {
+      if (typeof options === "function") {
+        cb = options;
+        options = {};
+      }
+      if (!cb) {
+        if (typeof Promise !== "function") {
+          throw new TypeError("callback not provided");
+        }
+        return new Promise(function(resolve2, reject) {
+          isexe(path, options || {}, function(er, is) {
+            if (er) {
+              reject(er);
+            } else {
+              resolve2(is);
+            }
+          });
+        });
+      }
+      core2(path, options || {}, function(er, is) {
+        if (er) {
+          if (er.code === "EACCES" || options && options.ignoreErrors) {
+            er = null;
+            is = false;
+          }
+        }
+        cb(er, is);
+      });
+    }
+    function sync(path, options) {
+      try {
+        return core2.sync(path, options || {});
+      } catch (er) {
+        if (options && options.ignoreErrors || er.code === "EACCES") {
+          return false;
+        } else {
+          throw er;
+        }
+      }
+    }
+  }
+});
+
+// node_modules/which/which.js
+var require_which = __commonJS({
+  "node_modules/which/which.js"(exports, module) {
+    var isWindows = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys";
+    var path = __require("path");
+    var COLON = isWindows ? ";" : ":";
+    var isexe = require_isexe();
+    var getNotFoundError = (cmd) => Object.assign(new Error(`not found: ${cmd}`), { code: "ENOENT" });
+    var getPathInfo = (cmd, opt) => {
+      const colon = opt.colon || COLON;
+      const pathEnv = cmd.match(/\//) || isWindows && cmd.match(/\\/) ? [""] : [
+        // windows always checks the cwd first
+        ...isWindows ? [process.cwd()] : [],
+        ...(opt.path || process.env.PATH || /* istanbul ignore next: very unusual */
+        "").split(colon)
+      ];
+      const pathExtExe = isWindows ? opt.pathExt || process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM" : "";
+      const pathExt = isWindows ? pathExtExe.split(colon) : [""];
+      if (isWindows) {
+        if (cmd.indexOf(".") !== -1 && pathExt[0] !== "")
+          pathExt.unshift("");
+      }
+      return {
+        pathEnv,
+        pathExt,
+        pathExtExe
+      };
+    };
+    var which = (cmd, opt, cb) => {
+      if (typeof opt === "function") {
+        cb = opt;
+        opt = {};
+      }
+      if (!opt)
+        opt = {};
+      const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt);
+      const found = [];
+      const step = (i) => new Promise((resolve2, reject) => {
+        if (i === pathEnv.length)
+          return opt.all && found.length ? resolve2(found) : reject(getNotFoundError(cmd));
+        const ppRaw = pathEnv[i];
+        const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
+        const pCmd = path.join(pathPart, cmd);
+        const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
+        resolve2(subStep(p, i, 0));
+      });
+      const subStep = (p, i, ii) => new Promise((resolve2, reject) => {
+        if (ii === pathExt.length)
+          return resolve2(step(i + 1));
+        const ext = pathExt[ii];
+        isexe(p + ext, { pathExt: pathExtExe }, (er, is) => {
+          if (!er && is) {
+            if (opt.all)
+              found.push(p + ext);
+            else
+              return resolve2(p + ext);
+          }
+          return resolve2(subStep(p, i, ii + 1));
+        });
+      });
+      return cb ? step(0).then((res) => cb(null, res), cb) : step(0);
+    };
+    var whichSync = (cmd, opt) => {
+      opt = opt || {};
+      const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt);
+      const found = [];
+      for (let i = 0; i < pathEnv.length; i++) {
+        const ppRaw = pathEnv[i];
+        const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
+        const pCmd = path.join(pathPart, cmd);
+        const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
+        for (let j = 0; j < pathExt.length; j++) {
+          const cur = p + pathExt[j];
+          try {
+            const is = isexe.sync(cur, { pathExt: pathExtExe });
+            if (is) {
+              if (opt.all)
+                found.push(cur);
+              else
+                return cur;
+            }
+          } catch (ex) {
+          }
+        }
+      }
+      if (opt.all && found.length)
+        return found;
+      if (opt.nothrow)
+        return null;
+      throw getNotFoundError(cmd);
+    };
+    module.exports = which;
+    which.sync = whichSync;
+  }
+});
+
+// node_modules/path-key/index.js
+var require_path_key = __commonJS({
+  "node_modules/path-key/index.js"(exports, module) {
+    "use strict";
+    var pathKey = (options = {}) => {
+      const environment = options.env || process.env;
+      const platform = options.platform || process.platform;
+      if (platform !== "win32") {
+        return "PATH";
+      }
+      return Object.keys(environment).reverse().find((key) => key.toUpperCase() === "PATH") || "Path";
+    };
+    module.exports = pathKey;
+    module.exports.default = pathKey;
+  }
+});
+
+// node_modules/cross-spawn/lib/util/resolveCommand.js
+var require_resolveCommand = __commonJS({
+  "node_modules/cross-spawn/lib/util/resolveCommand.js"(exports, module) {
+    "use strict";
+    var path = __require("path");
+    var which = require_which();
+    var getPathKey = require_path_key();
+    function resolveCommandAttempt(parsed, withoutPathExt) {
+      const env = parsed.options.env || process.env;
+      const cwd = process.cwd();
+      const hasCustomCwd = parsed.options.cwd != null;
+      const shouldSwitchCwd = hasCustomCwd && process.chdir !== void 0 && !process.chdir.disabled;
+      if (shouldSwitchCwd) {
+        try {
+          process.chdir(parsed.options.cwd);
+        } catch (err) {
+        }
+      }
+      let resolved;
+      try {
+        resolved = which.sync(parsed.command, {
+          path: env[getPathKey({ env })],
+          pathExt: withoutPathExt ? path.delimiter : void 0
+        });
+      } catch (e) {
+      } finally {
+        if (shouldSwitchCwd) {
+          process.chdir(cwd);
+        }
+      }
+      if (resolved) {
+        resolved = path.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
+      }
+      return resolved;
+    }
+    function resolveCommand(parsed) {
+      return resolveCommandAttempt(parsed) || resolveCommandAttempt(parsed, true);
+    }
+    module.exports = resolveCommand;
+  }
+});
+
+// node_modules/cross-spawn/lib/util/escape.js
+var require_escape = __commonJS({
+  "node_modules/cross-spawn/lib/util/escape.js"(exports, module) {
+    "use strict";
+    var metaCharsRegExp = /([()\][%!^"`<>&|;, *?])/g;
+    function escapeCommand(arg) {
+      arg = arg.replace(metaCharsRegExp, "^$1");
+      return arg;
+    }
+    function escapeArgument(arg, doubleEscapeMetaChars) {
+      arg = `${arg}`;
+      arg = arg.replace(/(?=(\\+?)?)\1"/g, '$1$1\\"');
+      arg = arg.replace(/(?=(\\+?)?)\1$/, "$1$1");
+      arg = `"${arg}"`;
+      arg = arg.replace(metaCharsRegExp, "^$1");
+      if (doubleEscapeMetaChars) {
+        arg = arg.replace(metaCharsRegExp, "^$1");
+      }
+      return arg;
+    }
+    module.exports.command = escapeCommand;
+    module.exports.argument = escapeArgument;
+  }
+});
+
+// node_modules/shebang-regex/index.js
+var require_shebang_regex = __commonJS({
+  "node_modules/shebang-regex/index.js"(exports, module) {
+    "use strict";
+    module.exports = /^#!(.*)/;
+  }
+});
+
+// node_modules/shebang-command/index.js
+var require_shebang_command = __commonJS({
+  "node_modules/shebang-command/index.js"(exports, module) {
+    "use strict";
+    var shebangRegex = require_shebang_regex();
+    module.exports = (string = "") => {
+      const match = string.match(shebangRegex);
+      if (!match) {
+        return null;
+      }
+      const [path, argument] = match[0].replace(/#! ?/, "").split(" ");
+      const binary2 = path.split("/").pop();
+      if (binary2 === "env") {
+        return argument;
+      }
+      return argument ? `${binary2} ${argument}` : binary2;
+    };
+  }
+});
+
+// node_modules/cross-spawn/lib/util/readShebang.js
+var require_readShebang = __commonJS({
+  "node_modules/cross-spawn/lib/util/readShebang.js"(exports, module) {
+    "use strict";
+    var fs = __require("fs");
+    var shebangCommand = require_shebang_command();
+    function readShebang(command) {
+      const size = 150;
+      const buffer = Buffer.alloc(size);
+      let fd;
+      try {
+        fd = fs.openSync(command, "r");
+        fs.readSync(fd, buffer, 0, size, 0);
+        fs.closeSync(fd);
+      } catch (e) {
+      }
+      return shebangCommand(buffer.toString());
+    }
+    module.exports = readShebang;
+  }
+});
+
+// node_modules/cross-spawn/lib/parse.js
+var require_parse = __commonJS({
+  "node_modules/cross-spawn/lib/parse.js"(exports, module) {
+    "use strict";
+    var path = __require("path");
+    var resolveCommand = require_resolveCommand();
+    var escape = require_escape();
+    var readShebang = require_readShebang();
+    var isWin = process.platform === "win32";
+    var isExecutableRegExp = /\.(?:com|exe)$/i;
+    var isCmdShimRegExp = /node_modules[\\/].bin[\\/][^\\/]+\.cmd$/i;
+    function detectShebang(parsed) {
+      parsed.file = resolveCommand(parsed);
+      const shebang = parsed.file && readShebang(parsed.file);
+      if (shebang) {
+        parsed.args.unshift(parsed.file);
+        parsed.command = shebang;
+        return resolveCommand(parsed);
+      }
+      return parsed.file;
+    }
+    function parseNonShell(parsed) {
+      if (!isWin) {
+        return parsed;
+      }
+      const commandFile = detectShebang(parsed);
+      const needsShell = !isExecutableRegExp.test(commandFile);
+      if (parsed.options.forceShell || needsShell) {
+        const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
+        parsed.command = path.normalize(parsed.command);
+        parsed.command = escape.command(parsed.command);
+        parsed.args = parsed.args.map((arg) => escape.argument(arg, needsDoubleEscapeMetaChars));
+        const shellCommand = [parsed.command].concat(parsed.args).join(" ");
+        parsed.args = ["/d", "/s", "/c", `"${shellCommand}"`];
+        parsed.command = process.env.comspec || "cmd.exe";
+        parsed.options.windowsVerbatimArguments = true;
+      }
+      return parsed;
+    }
+    function parse(command, args, options) {
+      if (args && !Array.isArray(args)) {
+        options = args;
+        args = null;
+      }
+      args = args ? args.slice(0) : [];
+      options = Object.assign({}, options);
+      const parsed = {
+        command,
+        args,
+        options,
+        file: void 0,
+        original: {
+          command,
+          args
+        }
+      };
+      return options.shell ? parsed : parseNonShell(parsed);
+    }
+    module.exports = parse;
+  }
+});
+
+// node_modules/cross-spawn/lib/enoent.js
+var require_enoent = __commonJS({
+  "node_modules/cross-spawn/lib/enoent.js"(exports, module) {
+    "use strict";
+    var isWin = process.platform === "win32";
+    function notFoundError(original, syscall) {
+      return Object.assign(new Error(`${syscall} ${original.command} ENOENT`), {
+        code: "ENOENT",
+        errno: "ENOENT",
+        syscall: `${syscall} ${original.command}`,
+        path: original.command,
+        spawnargs: original.args
+      });
+    }
+    function hookChildProcess(cp, parsed) {
+      if (!isWin) {
+        return;
+      }
+      const originalEmit = cp.emit;
+      cp.emit = function(name, arg1) {
+        if (name === "exit") {
+          const err = verifyENOENT(arg1, parsed);
+          if (err) {
+            return originalEmit.call(cp, "error", err);
+          }
+        }
+        return originalEmit.apply(cp, arguments);
+      };
+    }
+    function verifyENOENT(status, parsed) {
+      if (isWin && status === 1 && !parsed.file) {
+        return notFoundError(parsed.original, "spawn");
+      }
+      return null;
+    }
+    function verifyENOENTSync(status, parsed) {
+      if (isWin && status === 1 && !parsed.file) {
+        return notFoundError(parsed.original, "spawnSync");
+      }
+      return null;
+    }
+    module.exports = {
+      hookChildProcess,
+      verifyENOENT,
+      verifyENOENTSync,
+      notFoundError
+    };
+  }
+});
+
+// node_modules/cross-spawn/index.js
+var require_cross_spawn = __commonJS({
+  "node_modules/cross-spawn/index.js"(exports, module) {
+    "use strict";
+    var cp = __require("child_process");
+    var parse = require_parse();
+    var enoent = require_enoent();
+    function spawn2(command, args, options) {
+      const parsed = parse(command, args, options);
+      const spawned = cp.spawn(parsed.command, parsed.args, parsed.options);
+      enoent.hookChildProcess(spawned, parsed);
+      return spawned;
+    }
+    function spawnSync(command, args, options) {
+      const parsed = parse(command, args, options);
+      const result = cp.spawnSync(parsed.command, parsed.args, parsed.options);
+      result.error = result.error || enoent.verifyENOENTSync(result.status, parsed);
+      return result;
+    }
+    module.exports = spawn2;
+    module.exports.spawn = spawn2;
+    module.exports.sync = spawnSync;
+    module.exports._parse = parse;
+    module.exports._enoent = enoent;
+  }
+});
+
+// src/openapi/parser.ts
+import { readFileSync as readFileSync2 } from "fs";
+function parseOpenAPISpec(filePath) {
+  const content = readFileSync2(filePath, "utf-8");
+  try {
+    return JSON.parse(content);
+  } catch {
+    return yaml.load(content);
+  }
+}
+function getParameterExample(param) {
+  if (param.example !== void 0) {
+    return param.example;
+  }
+  if (param.schema?.example !== void 0) {
+    return param.schema.example;
+  }
+  if (param.schema?.default !== void 0) {
+    return param.schema.default;
+  }
+  const type2 = param.schema?.type;
+  switch (type2) {
+    case "string":
+      return "example";
+    case "number":
+    case "integer":
+      return param.name.toLowerCase().includes("id") ? 1 : 0;
+    case "boolean":
+      return true;
+    default:
+      return null;
+  }
+}
+function getRequestBodyExample(requestBody) {
+  const jsonContent = requestBody.content["application/json"];
+  if (!jsonContent) {
+    return void 0;
+  }
+  if (jsonContent.example) {
+    return jsonContent.example;
+  }
+  if (jsonContent.examples) {
+    const firstExample = Object.values(jsonContent.examples)[0];
+    if (firstExample?.value) {
+      return firstExample.value;
+    }
+  }
+  return generateExampleFromSchema(jsonContent.schema);
+}
+function generateExampleFromSchema(schema2) {
+  if (!schema2) {
+    return void 0;
+  }
+  if (schema2.example !== void 0) {
+    return schema2.example;
+  }
+  const type2 = schema2.type;
+  switch (type2) {
+    case "object":
+      if (!schema2.properties) {
+        return {};
+      }
+      const obj = {};
+      for (const [propName, propSchema] of Object.entries(schema2.properties)) {
+        obj[propName] = generateExampleFromSchema(propSchema);
+      }
+      return obj;
+    case "array":
+      if (schema2.items) {
+        return [generateExampleFromSchema(schema2.items)];
+      }
+      return [];
+    case "string":
+      if (schema2.enum) {
+        return schema2.enum[0];
+      }
+      if (schema2.format === "email") {
+        return "user@example.com";
+      }
+      if (schema2.format === "date-time") {
+        return (/* @__PURE__ */ new Date()).toISOString();
+      }
+      return "string";
+    case "number":
+    case "integer":
+      return 0;
+    case "boolean":
+      return true;
+    default:
+      return null;
+  }
+}
+var init_parser = __esm({
+  "src/openapi/parser.ts"() {
+    "use strict";
+    init_js_yaml();
+  }
+});
+
+// src/openapi/generator.ts
+function generateProbesFromOpenAPI(spec) {
+  const probes = [];
+  const groupedPaths = groupPathsByTag(spec);
+  for (const [groupName, paths] of Object.entries(groupedPaths)) {
+    const requests = [];
+    for (const [path, methods] of Object.entries(paths)) {
+      for (const [method, operation] of Object.entries(methods)) {
+        if (!operation) continue;
+        const request = generateRequest(path, method.toUpperCase(), operation);
+        if (request) {
+          requests.push(request);
+        }
+      }
+    }
+    if (requests.length > 0) {
+      probes.push({
+        type: "api",
+        name: groupName,
+        requests,
+        diff: {
+          against: "base_branch",
+          ignore_fields: [
+            "requests[*].response.body.timestamp",
+            "requests[*].response.body.created_at",
+            "requests[*].response.body.updated_at",
+            "requests[*].response.body.id",
+            "requests[*].response.headers.x-request-id",
+            "requests[*].response.headers.date"
+          ]
+        }
+      });
+    }
+  }
+  return probes;
+}
+function groupPathsByTag(spec) {
+  const groups = {};
+  for (const [path, pathItem] of Object.entries(spec.paths)) {
+    for (const [method, operation] of Object.entries(pathItem)) {
+      if (!operation || typeof operation !== "object") continue;
+      const op = operation;
+      let groupName = "API endpoints";
+      if (op.summary) {
+        groupName = op.summary.split(" ")[0];
+      } else {
+        const parts = path.split("/").filter(Boolean);
+        if (parts.length > 0) {
+          groupName = parts[parts.length - 1];
+        }
+      }
+      if (!groups[groupName]) {
+        groups[groupName] = {};
+      }
+      if (!groups[groupName][path]) {
+        groups[groupName][path] = {};
+      }
+      groups[groupName][path][method] = op;
+    }
+  }
+  return groups;
+}
+function generateRequest(path, method, operation) {
+  const request = {
+    method,
+    path
+  };
+  if (operation.parameters) {
+    const pathParams = operation.parameters.filter((p) => p.in === "path");
+    for (const param of pathParams) {
+      const example = getParameterExample(param);
+      request.path = request.path.replace(`{${param.name}}`, String(example));
+    }
+    const queryParams = operation.parameters.filter((p) => p.in === "query");
+    if (queryParams.length > 0) {
+      const queryString = queryParams.map((p) => `${p.name}=${getParameterExample(p)}`).join("&");
+      request.path += `?${queryString}`;
+    }
+    const headerParams = operation.parameters.filter((p) => p.in === "header");
+    if (headerParams.length > 0) {
+      request.headers = {};
+      for (const param of headerParams) {
+        request.headers[param.name] = String(getParameterExample(param));
+      }
+    }
+  }
+  if (operation.requestBody && (method === "POST" || method === "PUT" || method === "PATCH")) {
+    const example = getRequestBodyExample(operation.requestBody);
+    if (example !== void 0) {
+      request.body = example;
+    }
+  }
+  return request;
+}
+function generateYAMLFromProbes(probes) {
+  let yaml2 = "probes:\n";
+  for (const probe of probes) {
+    yaml2 += `  - type: ${probe.type}
+`;
+    yaml2 += `    name: "${probe.name}"
+`;
+    yaml2 += `    requests:
+`;
+    for (const request of probe.requests) {
+      yaml2 += `      - method: ${request.method}
+`;
+      yaml2 += `        path: ${request.path}
+`;
+      if (request.headers) {
+        yaml2 += `        headers:
+`;
+        for (const [key, value] of Object.entries(request.headers)) {
+          yaml2 += `          ${key}: "${value}"
+`;
+        }
+      }
+      if (request.body !== void 0) {
+        yaml2 += `        body:
+`;
+        yaml2 += indentYAML(JSON.stringify(request.body, null, 2), 10);
+      }
+    }
+    yaml2 += `    diff:
+`;
+    yaml2 += `      against: base_branch
+`;
+    yaml2 += `      ignore_fields:
+`;
+    for (const field of probe.diff.ignore_fields) {
+      yaml2 += `        - "${field}"
+`;
+    }
+    yaml2 += "\n";
+  }
+  return yaml2;
+}
+function indentYAML(json2, spaces) {
+  const indent = " ".repeat(spaces);
+  return json2.split("\n").map((line) => indent + line).join("\n") + "\n";
+}
+var init_generator = __esm({
+  "src/openapi/generator.ts"() {
+    "use strict";
+    init_parser();
+  }
+});
+
+// src/openapi/index.ts
+var openapi_exports = {};
+__export(openapi_exports, {
+  generateProbesFromOpenAPI: () => generateProbesFromOpenAPI,
+  generateProbesFromSpec: () => generateProbesFromSpec,
+  generateYAMLFromProbes: () => generateYAMLFromProbes,
+  parseOpenAPISpec: () => parseOpenAPISpec
+});
+async function generateProbesFromSpec(specPath) {
+  const spec = parseOpenAPISpec(specPath);
+  const probes = generateProbesFromOpenAPI(spec);
+  return generateYAMLFromProbes(probes);
+}
+var init_openapi = __esm({
+  "src/openapi/index.ts"() {
+    "use strict";
+    init_parser();
+    init_generator();
+  }
+});
+
+// src/config/loader.ts
+init_js_yaml();
+import { readFile } from "node:fs/promises";
 
 // node_modules/zod/v3/external.js
 var external_exports = {};
@@ -7665,7 +7896,35 @@ var CliProbeSchema = external_exports.object({
   commands: external_exports.array(CliCommandSchema).min(1),
   diff: CliDiffOptionsSchema.default({ against: "base_branch", ignore_fields: [], normalize: [] })
 });
-var ProbeConfigSchema = external_exports.discriminatedUnion("type", [ApiProbeSchema, CliProbeSchema]);
+var GraphQLQuerySchema = external_exports.object({
+  query: external_exports.string().min(1),
+  variables: external_exports.record(external_exports.any()).optional(),
+  operationName: external_exports.string().optional()
+});
+var GraphQLProbeSchema = external_exports.object({
+  type: external_exports.literal("graphql"),
+  name: external_exports.string().min(1),
+  endpoint: external_exports.string().min(1),
+  queries: external_exports.array(GraphQLQuerySchema).min(1),
+  diff: DiffOptionsSchema.default({ against: "base_branch", ignore_fields: [] })
+});
+var DatabaseQuerySchema = external_exports.object({
+  sql: external_exports.string().min(1),
+  params: external_exports.array(external_exports.any()).optional()
+});
+var DatabaseProbeSchema = external_exports.object({
+  type: external_exports.literal("database"),
+  name: external_exports.string().min(1),
+  connection: external_exports.string().min(1),
+  queries: external_exports.array(DatabaseQuerySchema).min(1),
+  diff: DiffOptionsSchema.default({ against: "base_branch", ignore_fields: [] })
+});
+var ProbeConfigSchema = external_exports.discriminatedUnion("type", [
+  ApiProbeSchema,
+  CliProbeSchema,
+  GraphQLProbeSchema,
+  DatabaseProbeSchema
+]);
 var TargetSchema = external_exports.object({
   base_url: external_exports.string().min(1),
   wait_for: external_exports.object({
@@ -7989,10 +8248,198 @@ function runOnce(binary2, args, cwd, stdin) {
   });
 }
 
+// src/probes/GraphQLProbe.ts
+var GraphQLProbe = class {
+  async run(config, targetUrl, _workingDirectory) {
+    if (config.type !== "graphql") {
+      throw new Error(`GraphQLProbe received a non-graphql config: "${config.type}"`);
+    }
+    const graphqlConfig = config;
+    const start = Date.now();
+    const results = [];
+    try {
+      for (const queryConfig of graphqlConfig.queries) {
+        try {
+          const url = targetUrl + graphqlConfig.endpoint;
+          const body = {
+            query: queryConfig.query,
+            variables: queryConfig.variables || {},
+            operationName: queryConfig.operationName
+          };
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+          });
+          const responseData = await response.json();
+          results.push({
+            query: queryConfig.query.substring(0, 100),
+            operationName: queryConfig.operationName,
+            status: response.status,
+            data: responseData.data,
+            errors: responseData.errors
+          });
+        } catch (error) {
+          results.push({
+            query: queryConfig.query.substring(0, 100),
+            error: error.message
+          });
+        }
+      }
+      return {
+        probeName: graphqlConfig.name,
+        probeType: "graphql",
+        durationMs: Date.now() - start,
+        commandRuns: results.map((r) => ({
+          args: [r.query],
+          stdout: JSON.stringify(r),
+          stderr: r.error || "",
+          exitCode: r.error ? 1 : 0
+        }))
+      };
+    } catch (err) {
+      return {
+        probeName: graphqlConfig.name,
+        probeType: "graphql",
+        durationMs: Date.now() - start,
+        error: err.message
+      };
+    }
+  }
+};
+
+// src/probes/DatabaseProbe.ts
+var DatabaseProbe = class {
+  async run(config, _targetUrl, _workingDirectory) {
+    if (config.type !== "database") {
+      throw new Error(`DatabaseProbe received a non-database config: "${config.type}"`);
+    }
+    const dbConfig = config;
+    const start = Date.now();
+    const results = [];
+    try {
+      const dbType = detectDatabaseType(dbConfig.connection);
+      for (const queryConfig of dbConfig.queries) {
+        try {
+          const result = await executeQuery(dbType, dbConfig.connection, queryConfig.sql, queryConfig.params);
+          results.push({
+            sql: queryConfig.sql,
+            rowCount: result.rows.length,
+            rows: result.rows
+          });
+        } catch (error) {
+          results.push({
+            sql: queryConfig.sql,
+            error: error.message
+          });
+        }
+      }
+      return {
+        probeName: dbConfig.name,
+        probeType: "database",
+        durationMs: Date.now() - start,
+        commandRuns: results.map((r) => ({
+          args: [r.sql],
+          stdout: JSON.stringify({ rowCount: r.rowCount, rows: r.rows }),
+          stderr: r.error || "",
+          exitCode: r.error ? 1 : 0
+        }))
+      };
+    } catch (err) {
+      return {
+        probeName: dbConfig.name,
+        probeType: "database",
+        durationMs: Date.now() - start,
+        error: err.message
+      };
+    }
+  }
+};
+function detectDatabaseType(connectionString) {
+  if (connectionString.startsWith("postgres://") || connectionString.startsWith("postgresql://")) {
+    return "postgres";
+  }
+  if (connectionString.startsWith("mysql://")) {
+    return "mysql";
+  }
+  if (connectionString.startsWith("sqlite://") || connectionString.endsWith(".db") || connectionString.endsWith(".sqlite")) {
+    return "sqlite";
+  }
+  return "unknown";
+}
+async function executeQuery(dbType, connectionString, sql, params) {
+  switch (dbType) {
+    case "postgres":
+      return executePostgresQuery(connectionString, sql, params);
+    case "mysql":
+      return executeMysqlQuery(connectionString, sql, params);
+    case "sqlite":
+      return executeSqliteQuery(connectionString, sql, params);
+    default:
+      throw new Error(`Unsupported database type: ${dbType}`);
+  }
+}
+async function executePostgresQuery(connectionString, sql, params) {
+  try {
+    const pg = await import("pg");
+    const { Client } = pg.default || pg;
+    const client = new Client({ connectionString });
+    await client.connect();
+    const result = await client.query(sql, params);
+    await client.end();
+    return { rows: result.rows };
+  } catch (error) {
+    if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
+      throw new Error('PostgreSQL support requires the "pg" package. Install with: npm install pg');
+    }
+    throw error;
+  }
+}
+async function executeMysqlQuery(connectionString, sql, params) {
+  try {
+    const mysql = await import("mysql2/promise");
+    const mysqlLib = mysql.default || mysql;
+    const connection = await mysqlLib.createConnection(connectionString);
+    const [rows] = await connection.execute(sql, params);
+    await connection.end();
+    return { rows };
+  } catch (error) {
+    if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
+      throw new Error('MySQL support requires the "mysql2" package. Install with: npm install mysql2');
+    }
+    throw error;
+  }
+}
+async function executeSqliteQuery(connectionString, sql, params) {
+  try {
+    const sqlite3Module = await import("sqlite3");
+    const sqliteModule = await import("sqlite");
+    const sqlite3 = sqlite3Module.default || sqlite3Module;
+    const { open } = sqliteModule;
+    const dbPath = connectionString.replace("sqlite://", "");
+    const db = await open({
+      filename: dbPath,
+      driver: sqlite3.Database
+    });
+    const rows = await db.all(sql, params);
+    await db.close();
+    return { rows };
+  } catch (error) {
+    if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
+      throw new Error('SQLite support requires the "sqlite" and "sqlite3" packages. Install with: npm install sqlite sqlite3');
+    }
+    throw error;
+  }
+}
+
 // src/probes/registry.ts
 var probeRegistry = {
   api: new ApiProbe(),
-  cli: new CliProbe()
+  cli: new CliProbe(),
+  graphql: new GraphQLProbe(),
+  database: new DatabaseProbe()
 };
 function resolveProbe(type2) {
   const probe = probeRegistry[type2];
@@ -8116,54 +8563,111 @@ function scrubSecrets(value) {
 
 // src/render/prComment.ts
 var BADGE_STYLE = {
-  pass: { label: "pass", color: "brightgreen" },
-  diff_detected: { label: "diff detected", color: "yellow" },
-  error: { label: "error", color: "red" }
+  pass: { label: "pass", color: "brightgreen", emoji: "\u2713" },
+  diff_detected: { label: "diff detected", color: "yellow", emoji: "\u26A0" },
+  error: { label: "error", color: "red", emoji: "\u2717" }
 };
 function statusBadge(status) {
-  const { label, color } = BADGE_STYLE[status];
+  const { label, color, emoji } = BADGE_STYLE[status];
   const encodedLabel = encodeURIComponent(label);
-  return `![${label}](https://img.shields.io/badge/status-${encodedLabel}-${color})`;
+  return `${emoji} ![${label}](https://img.shields.io/badge/status-${encodedLabel}-${color})`;
 }
 function renderPrComment(results, reportUrl) {
   const lines = [];
-  lines.push(`### Backline results \u2014 ${results.length} probe${results.length === 1 ? "" : "s"}`);
+  const passCount = results.filter((r) => r.status === "pass").length;
+  const diffCount = results.filter((r) => r.status === "diff_detected").length;
+  const errorCount = results.filter((r) => r.status === "error").length;
+  lines.push(`### Backline Results`);
   lines.push("");
-  lines.push("| Probe | Status |");
-  lines.push("|---|---|");
+  if (diffCount > 0 || errorCount > 0) {
+    lines.push(`<details open>`);
+    lines.push(`<summary><strong>${diffCount + errorCount} issue${diffCount + errorCount === 1 ? "" : "s"} detected</strong> (${passCount} passing)</summary>`);
+    lines.push("");
+  }
+  lines.push("| Probe | Status | Changes |");
+  lines.push("|---|---|---|");
   for (const result of results) {
-    lines.push(`| ${result.probeName} | ${statusBadge(result.status)} |`);
+    const changeCount = result.status === "diff_detected" ? result.changedPaths.length : 0;
+    const changeText = changeCount > 0 ? `${changeCount} field${changeCount === 1 ? "" : "s"}` : "\u2014";
+    lines.push(`| ${result.probeName} | ${statusBadge(result.status)} | ${changeText} |`);
+  }
+  if (diffCount > 0 || errorCount > 0) {
+    lines.push("");
+    lines.push(`</details>`);
   }
   lines.push("");
   if (reportUrl) {
-    lines.push(`[View full diff report](${reportUrl})`);
+    lines.push(`[\u{1F4CA} View detailed diff report](${reportUrl})`);
   }
   return lines.join("\n");
 }
 function renderJobSummary(results) {
   const lines = [];
-  lines.push(`# Backline \u2014 full diff report`);
+  lines.push(`# Backline \u2014 Detailed Diff Report`);
+  lines.push("");
+  const summary = getSummary(results);
+  lines.push(`**${summary.passed}** passed \xB7 **${summary.changed}** changed \xB7 **${summary.failed}** failed`);
   lines.push("");
   for (const result of results) {
-    lines.push(`## ${result.probeName} \u2014 ${result.status.replace("_", " ")}`);
+    const { emoji } = BADGE_STYLE[result.status];
+    lines.push(`<details${result.status !== "pass" ? " open" : ""}>`);
+    lines.push(`<summary><h2>${emoji} ${result.probeName}</h2></summary>`);
     lines.push("");
     if (result.status === "pass") {
-      lines.push("No differences detected.");
+      lines.push("\u2713 No differences detected.");
     } else if (result.status === "error") {
-      lines.push(`Failed to run: ${result.error}`);
+      lines.push("```");
+      lines.push(`Error: ${result.error}`);
+      lines.push("```");
     } else {
-      lines.push("| Field | Base | Head |");
-      lines.push("|---|---|---|");
+      lines.push("### Changed Fields");
+      lines.push("");
       for (const change of result.changedPaths) {
-        lines.push(`| \`${change.path}\` | ${stringify(change.before)} | ${stringify(change.after)} |`);
+        lines.push(`#### \`${change.path}\``);
+        lines.push("");
+        lines.push("<table>");
+        lines.push("<tr><th>Base Branch</th><th>PR Branch</th></tr>");
+        lines.push("<tr>");
+        lines.push("<td>");
+        lines.push("");
+        lines.push("```json");
+        lines.push(formatValue(change.before));
+        lines.push("```");
+        lines.push("");
+        lines.push("</td>");
+        lines.push("<td>");
+        lines.push("");
+        lines.push("```json");
+        lines.push(formatValue(change.after));
+        lines.push("```");
+        lines.push("");
+        lines.push("</td>");
+        lines.push("</tr>");
+        lines.push("</table>");
+        lines.push("");
       }
     }
+    lines.push("</details>");
     lines.push("");
   }
   return lines.join("\n");
 }
-function stringify(value) {
-  return JSON.stringify(value);
+function getSummary(results) {
+  return {
+    passed: results.filter((r) => r.status === "pass").length,
+    changed: results.filter((r) => r.status === "diff_detected").length,
+    failed: results.filter((r) => r.status === "error").length
+  };
+}
+function formatValue(value) {
+  if (typeof value === "string") {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 // src/orchestrator.ts
@@ -8232,9 +8736,511 @@ async function getBaseOutputs(config, adapter, cache, baseRef) {
   return probeOutputs;
 }
 
+// src/init/index.ts
+import { existsSync as existsSync2, mkdirSync, writeFileSync } from "fs";
+import { join as join4 } from "path";
+
+// src/init/detectFramework.ts
+import { existsSync, readFileSync } from "fs";
+import { join as join3 } from "path";
+function detectFramework(projectRoot) {
+  const details = {
+    hasDockerfile: existsSync(join3(projectRoot, "Dockerfile")),
+    hasDockerCompose: existsSync(join3(projectRoot, "docker-compose.yml"))
+  };
+  if (existsSync(join3(projectRoot, "next.config.js")) || existsSync(join3(projectRoot, "next.config.mjs")) || existsSync(join3(projectRoot, "next.config.ts"))) {
+    details.packageManager = detectPackageManager(projectRoot);
+    details.detectedPaths = ["next.config.js"];
+    const hasAppDir = existsSync(join3(projectRoot, "app"));
+    const hasPagesDir = existsSync(join3(projectRoot, "pages"));
+    if (hasAppDir) {
+      details.detectedPaths.push("app/");
+    }
+    if (hasPagesDir) {
+      details.detectedPaths.push("pages/");
+    }
+    return {
+      framework: "nextjs",
+      confidence: "high",
+      details
+    };
+  }
+  const packageJsonPath = join3(projectRoot, "package.json");
+  if (existsSync(packageJsonPath)) {
+    try {
+      const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+      const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+      if (deps.express) {
+        details.packageManager = detectPackageManager(projectRoot);
+        details.detectedPaths = ["package.json"];
+        return {
+          framework: "express",
+          confidence: "high",
+          details
+        };
+      }
+      if (packageJson.bin) {
+        details.packageManager = detectPackageManager(projectRoot);
+        details.detectedPaths = ["package.json (bin field)"];
+        return {
+          framework: "cli",
+          confidence: "high",
+          details
+        };
+      }
+    } catch (e) {
+    }
+  }
+  if (existsSync(join3(projectRoot, "requirements.txt")) || existsSync(join3(projectRoot, "pyproject.toml"))) {
+    try {
+      const reqPath = join3(projectRoot, "requirements.txt");
+      if (existsSync(reqPath)) {
+        const requirements = readFileSync(reqPath, "utf-8");
+        if (requirements.includes("fastapi") || requirements.includes("uvicorn")) {
+          details.packageManager = "pip";
+          details.detectedPaths = ["requirements.txt"];
+          return {
+            framework: "fastapi",
+            confidence: "high",
+            details
+          };
+        }
+      }
+    } catch (e) {
+    }
+  }
+  if (existsSync(join3(projectRoot, "Gemfile")) && existsSync(join3(projectRoot, "config/application.rb"))) {
+    details.packageManager = "bundler";
+    details.detectedPaths = ["Gemfile", "config/application.rb"];
+    return {
+      framework: "rails",
+      confidence: "high",
+      details
+    };
+  }
+  if (existsSync(join3(projectRoot, "src/cli.ts")) || existsSync(join3(projectRoot, "src/cli.js")) || existsSync(join3(projectRoot, "bin"))) {
+    details.packageManager = detectPackageManager(projectRoot);
+    details.detectedPaths = ["src/cli.ts or bin/"];
+    return {
+      framework: "cli",
+      confidence: "medium",
+      details
+    };
+  }
+  return {
+    framework: "unknown",
+    confidence: "low",
+    details
+  };
+}
+function detectPackageManager(projectRoot) {
+  if (existsSync(join3(projectRoot, "pnpm-lock.yaml"))) return "pnpm";
+  if (existsSync(join3(projectRoot, "yarn.lock"))) return "yarn";
+  if (existsSync(join3(projectRoot, "package-lock.json"))) return "npm";
+  if (existsSync(join3(projectRoot, "requirements.txt"))) return "pip";
+  if (existsSync(join3(projectRoot, "Gemfile"))) return "bundler";
+  return "npm";
+}
+
+// src/init/generateConfig.ts
+function generateConfig(options) {
+  const { framework, baseUrl, healthPath, timeout, endpoints, binaryPath } = options;
+  switch (framework) {
+    case "nextjs":
+      return generateNextJsConfig(baseUrl, healthPath, timeout, endpoints);
+    case "express":
+      return generateExpressConfig(baseUrl, healthPath, timeout, endpoints);
+    case "fastapi":
+      return generateFastApiConfig(baseUrl, healthPath, timeout, endpoints);
+    case "rails":
+      return generateRailsConfig(baseUrl, healthPath, timeout, endpoints);
+    case "cli":
+      return generateCliConfig(binaryPath || "./dist/cli", endpoints);
+    default:
+      return generateGenericApiConfig(baseUrl, healthPath, timeout, endpoints);
+  }
+}
+function generateNextJsConfig(baseUrl, healthPath, timeout, endpoints) {
+  const endpointsList = endpoints && endpoints.length > 0 ? endpoints.map((path) => `      - method: GET
+        path: ${path}`).join("\n") : `      - method: GET
+        path: /api/hello`;
+  return `version: 1
+
+target:
+  base_url: "${baseUrl}"
+  wait_for:
+    path: ${healthPath}
+    timeout_seconds: ${timeout}
+  adapter: compose
+
+probes:
+  - type: api
+    name: "API routes"
+    requests:
+${endpointsList}
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"
+        - "requests[*].response.body.created_at"
+        - "requests[*].response.body.request_id"
+`;
+}
+function generateExpressConfig(baseUrl, healthPath, timeout, endpoints) {
+  const endpointsList = endpoints && endpoints.length > 0 ? endpoints.map((path) => `      - method: GET
+        path: ${path}`).join("\n") : `      - method: GET
+        path: /api/users
+      - method: GET
+        path: /api/status`;
+  return `version: 1
+
+target:
+  base_url: "${baseUrl}"
+  wait_for:
+    path: ${healthPath}
+    timeout_seconds: ${timeout}
+  adapter: compose
+
+probes:
+  - type: api
+    name: "API endpoints"
+    requests:
+${endpointsList}
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"
+        - "requests[*].response.body.request_id"
+`;
+}
+function generateFastApiConfig(baseUrl, healthPath, timeout, endpoints) {
+  const endpointsList = endpoints && endpoints.length > 0 ? endpoints.map((path) => `      - method: GET
+        path: ${path}`).join("\n") : `      - method: GET
+        path: /docs
+      - method: GET
+        path: /health`;
+  return `version: 1
+
+target:
+  base_url: "${baseUrl}"
+  wait_for:
+    path: ${healthPath}
+    timeout_seconds: ${timeout}
+  adapter: compose
+
+probes:
+  - type: api
+    name: "FastAPI endpoints"
+    requests:
+${endpointsList}
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"
+`;
+}
+function generateRailsConfig(baseUrl, healthPath, timeout, endpoints) {
+  const endpointsList = endpoints && endpoints.length > 0 ? endpoints.map((path) => `      - method: GET
+        path: ${path}`).join("\n") : `      - method: GET
+        path: /api/v1/health
+      - method: GET
+        path: /api/v1/users`;
+  return `version: 1
+
+target:
+  base_url: "${baseUrl}"
+  wait_for:
+    path: ${healthPath}
+    timeout_seconds: ${timeout}
+  adapter: compose
+
+probes:
+  - type: api
+    name: "Rails API endpoints"
+    requests:
+${endpointsList}
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"
+        - "requests[*].response.body.created_at"
+        - "requests[*].response.body.updated_at"
+`;
+}
+function generateCliConfig(binaryPath, commands) {
+  const commandsList = commands && commands.length > 0 ? commands.map((cmd) => `      - args: ${JSON.stringify(cmd.split(" "))}`).join("\n") : `      - args: ["--version"]
+      - args: ["--help"]`;
+  return `version: 1
+
+target:
+  adapter: compose
+
+probes:
+  - type: cli
+    name: "CLI commands"
+    binary: ${binaryPath}
+    commands:
+${commandsList}
+    diff:
+      against: base_branch
+      normalize:
+        - strip_ansi
+        - strip_timestamps
+`;
+}
+function generateGenericApiConfig(baseUrl, healthPath, timeout, endpoints) {
+  const endpointsList = endpoints && endpoints.length > 0 ? endpoints.map((path) => `      - method: GET
+        path: ${path}`).join("\n") : `      - method: GET
+        path: /health`;
+  return `version: 1
+
+target:
+  base_url: "${baseUrl}"
+  wait_for:
+    path: ${healthPath}
+    timeout_seconds: ${timeout}
+  adapter: compose
+
+probes:
+  - type: api
+    name: "API endpoints"
+    requests:
+${endpointsList}
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"
+`;
+}
+
+// src/init/generateWorkflow.ts
+function generateWorkflow(configPath = ".backline.yml") {
+  return `name: Backline
+
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  backline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: backlinedev/backline@v1
+        with:
+          config: ${configPath}
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+`;
+}
+
+// src/init/prompts.ts
+import * as readline from "readline";
+async function prompt(question, defaultValue) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  return new Promise((resolve2) => {
+    const promptText = defaultValue ? `${question} (${defaultValue}): ` : `${question}: `;
+    rl.question(promptText, (answer) => {
+      rl.close();
+      resolve2(answer.trim() || defaultValue || "");
+    });
+  });
+}
+async function confirm(question, defaultValue = true) {
+  const defaultText = defaultValue ? "Y/n" : "y/N";
+  const answer = await prompt(`${question} (${defaultText})`);
+  if (!answer) return defaultValue;
+  return answer.toLowerCase() === "y" || answer.toLowerCase() === "yes";
+}
+async function multiSelect(question, options, defaults) {
+  console.log(`
+${question}`);
+  console.log("Enter numbers separated by commas (e.g., 1,2,3):");
+  options.forEach((option, index) => {
+    const selected = defaults?.includes(option) ? "[x]" : "[ ]";
+    console.log(`  ${selected} ${index + 1}. ${option}`);
+  });
+  const answer = await prompt("Selection", defaults ? defaults.map((_, i) => String(i + 1)).join(",") : "");
+  if (!answer) {
+    return defaults || [];
+  }
+  const indices = answer.split(",").map((s) => parseInt(s.trim()) - 1);
+  return indices.filter((i) => i >= 0 && i < options.length).map((i) => options[i]);
+}
+
+// src/init/index.ts
+async function runInit(projectRoot, options = {}) {
+  console.log("\u{1F50D} Detecting framework...\n");
+  const detection = detectFramework(projectRoot);
+  console.log(`Framework: ${detection.framework} (${detection.confidence} confidence)`);
+  if (detection.details.detectedPaths) {
+    console.log(`Detected: ${detection.details.detectedPaths.join(", ")}`);
+  }
+  console.log();
+  const configPath = join4(projectRoot, ".backline.yml");
+  if (existsSync2(configPath) && !options.force) {
+    console.log("\u274C .backline.yml already exists. Use --force to overwrite.");
+    return;
+  }
+  const framework = detection.framework;
+  let configOptions;
+  if (framework === "cli") {
+    configOptions = await promptCliConfig(options);
+  } else {
+    configOptions = await promptApiConfig(framework, detection.details.hasDockerCompose, options);
+  }
+  console.log("\n\u{1F4DD} Generating configuration...\n");
+  const configContent = generateConfig(configOptions);
+  writeFileSync(configPath, configContent, "utf-8");
+  console.log("\u2713 Created .backline.yml");
+  const workflowDir = join4(projectRoot, ".github", "workflows");
+  const workflowPath = join4(workflowDir, "backline.yml");
+  if (!existsSync2(workflowPath) || options.force) {
+    if (!existsSync2(workflowDir)) {
+      mkdirSync(workflowDir, { recursive: true });
+    }
+    const workflowContent = generateWorkflow(".backline.yml");
+    writeFileSync(workflowPath, workflowContent, "utf-8");
+    console.log("\u2713 Created .github/workflows/backline.yml");
+  } else {
+    console.log("\u2298 Skipped .github/workflows/backline.yml (already exists)");
+  }
+  const dockerComposePath = join4(projectRoot, "docker-compose.yml");
+  if (!existsSync2(dockerComposePath)) {
+    console.log("\n\u26A0\uFE0F  docker-compose.yml not found. Backline requires Docker Compose to deploy your app.");
+    console.log("   Create one before running Backline. See examples/ for reference.");
+  }
+  console.log("\n\u2705 Backline is ready! Next steps:");
+  console.log("   1. Review and customize .backline.yml");
+  console.log("   2. Ensure you have a docker-compose.yml");
+  console.log("   3. Test locally: backline test --config .backline.yml --head-ref HEAD --base-ref main");
+  console.log("   4. Open a PR to see Backline in action!");
+}
+async function promptApiConfig(framework, hasDockerCompose, options) {
+  const baseUrl = options.yes ? "http://localhost:3000" : await prompt("Base URL", "http://localhost:3000");
+  const healthPath = options.yes ? "/health" : await prompt("Health check path", framework === "fastapi" ? "/docs" : "/health");
+  const timeout = options.yes ? 30 : parseInt(await prompt("Health check timeout (seconds)", "30"), 10);
+  let suggestedEndpoints = [];
+  if (framework === "nextjs") {
+    suggestedEndpoints = ["/api/hello", "/api/users", "/api/posts"];
+  } else if (framework === "express") {
+    suggestedEndpoints = ["/api/users", "/api/health", "/api/status"];
+  } else if (framework === "fastapi") {
+    suggestedEndpoints = ["/docs", "/health", "/api/v1/users"];
+  } else if (framework === "rails") {
+    suggestedEndpoints = ["/api/v1/health", "/api/v1/users"];
+  } else {
+    suggestedEndpoints = ["/api/health", "/api/users"];
+  }
+  let endpoints = [];
+  if (!options.yes) {
+    console.log("\nWhich endpoints should Backline test?");
+    const selectedEndpoints = await multiSelect(
+      "Select endpoints (or press Enter to use defaults)",
+      suggestedEndpoints,
+      [suggestedEndpoints[0]]
+    );
+    endpoints = selectedEndpoints;
+    const addMore = await confirm("Add custom endpoints?", false);
+    if (addMore) {
+      const customEndpoint = await prompt("Custom endpoint path (e.g., /api/custom)");
+      if (customEndpoint) {
+        endpoints.push(customEndpoint);
+      }
+    }
+  } else {
+    endpoints = [suggestedEndpoints[0]];
+  }
+  return {
+    framework,
+    baseUrl,
+    healthPath,
+    timeout,
+    endpoints
+  };
+}
+async function promptCliConfig(options) {
+  const binaryPath = options.yes ? "./dist/cli" : await prompt("Path to CLI binary", "./dist/cli");
+  let commands = [];
+  if (!options.yes) {
+    const suggestedCommands = ["--version", "--help"];
+    console.log("\nWhich commands should Backline test?");
+    const selectedCommands = await multiSelect(
+      "Select commands",
+      suggestedCommands,
+      suggestedCommands
+    );
+    commands = selectedCommands;
+    const addMore = await confirm("Add custom commands?", false);
+    if (addMore) {
+      const customCommand = await prompt("Custom command (e.g., process --input file.csv)");
+      if (customCommand) {
+        commands.push(customCommand);
+      }
+    }
+  } else {
+    commands = ["--version", "--help"];
+  }
+  return {
+    framework: "cli",
+    baseUrl: "",
+    healthPath: "",
+    timeout: 30,
+    endpoints: commands,
+    binaryPath
+  };
+}
+
 // src/cli.ts
+var VERSION = "0.1.0";
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
+    printHelp();
+    return;
+  }
+  if (argv[0] === "--version" || argv[0] === "-v") {
+    console.log(`backline v${VERSION}`);
+    return;
+  }
+  const command = argv[0];
+  const args = parseArgs(argv.slice(1));
+  switch (command) {
+    case "init":
+      await runInitCommand(args);
+      break;
+    case "test":
+      await runTestCommand(args);
+      break;
+    case "validate":
+      await runValidateCommand(args);
+      break;
+    case "generate":
+      await runGenerateCommand(args);
+      break;
+    default:
+      console.error(`Unknown command: ${command}`);
+      console.error('Run "backline --help" for usage information.');
+      process.exit(1);
+  }
+}
+async function runInitCommand(args) {
+  const projectRoot = process.cwd();
+  const force = args.force === "true";
+  const yes = args.yes === "true" || args.y === "true";
+  const framework = args.framework;
+  await runInit(projectRoot, { force, yes, framework });
+}
+async function runTestCommand(args) {
   const configPath = args.config ?? ".backline.yml";
   const headRef = args["head-ref"] ?? "HEAD";
   const baseRef = args["base-ref"] ?? "main";
@@ -8251,6 +9257,78 @@ async function main() {
     // No postComment callback — local runs just print, never touch GitHub.
   });
   console.log(commentBody);
+}
+async function runValidateCommand(args) {
+  const configPath = args.config ?? ".backline.yml";
+  try {
+    const config = await loadConfigFromFile(configPath);
+    await validateConfigSemantics(config);
+    console.log(`\u2713 Configuration is valid: ${configPath}`);
+    console.log(`  Probes: ${config.probes.length}`);
+    console.log(`  Adapter: ${config.target.adapter}`);
+    if (config.target.base_url) {
+      console.log(`  Base URL: ${config.target.base_url}`);
+    }
+  } catch (error) {
+    console.error(`\u2717 Configuration is invalid: ${error.message}`);
+    process.exit(1);
+  }
+}
+async function runGenerateCommand(args) {
+  const { generateProbesFromSpec: generateProbesFromSpec2 } = await Promise.resolve().then(() => (init_openapi(), openapi_exports));
+  const specPath = args.spec || args.openapi;
+  if (!specPath) {
+    console.error("Error: --spec or --openapi flag required");
+    console.error("Usage: backline generate --spec openapi.yaml");
+    process.exit(1);
+  }
+  try {
+    const probesYaml = await generateProbesFromSpec2(specPath);
+    console.log("# Generated probes from OpenAPI spec");
+    console.log("# Add this to your .backline.yml file\n");
+    console.log(probesYaml);
+  } catch (error) {
+    console.error(`Error generating probes: ${error.message}`);
+    process.exit(1);
+  }
+}
+function printHelp() {
+  console.log(`
+backline v${VERSION}
+
+Runtime behavior previews for pull requests.
+
+USAGE:
+  backline <command> [options]
+
+COMMANDS:
+  init              Set up Backline in your project
+  test              Run Backline locally without CI
+  validate          Validate .backline.yml configuration
+  generate          Generate probes from OpenAPI spec
+
+OPTIONS:
+  --help, -h        Show this help message
+  --version, -v     Show version number
+
+EXAMPLES:
+  # Initialize Backline (interactive)
+  backline init
+
+  # Initialize with defaults (non-interactive)
+  backline init --yes
+
+  # Test locally
+  backline test --config .backline.yml --head-ref HEAD --base-ref main
+
+  # Validate configuration
+  backline validate --config .backline.yml
+
+  # Generate probes from OpenAPI spec
+  backline generate --spec openapi.yaml
+
+For more information, visit https://github.com/backlinedev/backline
+`);
 }
 function parseArgs(argv) {
   const out = {};

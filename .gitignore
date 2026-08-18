@@ -16,3 +16,6 @@ node_modules/
 # editor/OS noise
 .DS_Store
 *.log
+
+# Internal reference docs
+PUBLISHING.md

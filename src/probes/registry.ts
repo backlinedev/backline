@@ -13,10 +13,14 @@
 import type { ProbeModule } from "./ProbeModule.js";
 import { ApiProbe } from "./ApiProbe.js";
 import { CliProbe } from "./CliProbe.js";
+import { GraphQLProbe } from "./GraphQLProbe.js";
+import { DatabaseProbe } from "./DatabaseProbe.js";
 
 export const probeRegistry: Record<string, ProbeModule> = {
   api: new ApiProbe(),
   cli: new CliProbe(),
+  graphql: new GraphQLProbe(),
+  database: new DatabaseProbe(),
 };
 
 /**

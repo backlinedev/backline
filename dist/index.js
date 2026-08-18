@@ -948,7 +948,7 @@ var require_util = __commonJS({
     var { InvalidArgumentError } = require_errors();
     var { Blob: Blob2 } = __require("buffer");
     var nodeUtil = __require("util");
-    var { stringify: stringify2 } = __require("querystring");
+    var { stringify } = __require("querystring");
     var { headerNameLowerCasedRecord } = require_constants();
     var [nodeMajor, nodeMinor] = process.versions.node.split(".").map((v) => Number(v));
     function nop() {
@@ -963,7 +963,7 @@ var require_util = __commonJS({
       if (url.includes("?") || url.includes("#")) {
         throw new Error('Query params cannot be passed when url already contains "?" or "#".');
       }
-      const stringified = stringify2(queryParams);
+      const stringified = stringify(queryParams);
       if (stringified) {
         url += "?" + stringified;
       }
@@ -15588,7 +15588,7 @@ var require_util6 = __commonJS({
         throw new Error("Invalid cookie max-age");
       }
     }
-    function stringify2(cookie) {
+    function stringify(cookie) {
       if (cookie.name.length === 0) {
         return null;
       }
@@ -15642,7 +15642,7 @@ var require_util6 = __commonJS({
       validateCookiePath,
       validateCookieValue,
       toIMFDate,
-      stringify: stringify2
+      stringify
     };
   }
 });
@@ -15792,7 +15792,7 @@ var require_cookies = __commonJS({
   "node_modules/undici/lib/cookies/index.js"(exports, module) {
     "use strict";
     var { parseSetCookie } = require_parse();
-    var { stringify: stringify2 } = require_util6();
+    var { stringify } = require_util6();
     var { webidl } = require_webidl();
     var { Headers } = require_headers();
     function getCookies(headers) {
@@ -15834,9 +15834,9 @@ var require_cookies = __commonJS({
       webidl.argumentLengthCheck(arguments, 2, { header: "setCookie" });
       webidl.brandCheck(headers, Headers, { strict: false });
       cookie = webidl.converters.Cookie(cookie);
-      const str2 = stringify2(cookie);
+      const str2 = stringify(cookie);
       if (str2) {
-        headers.append("Set-Cookie", stringify2(cookie));
+        headers.append("Set-Cookie", stringify(cookie));
       }
     }
     webidl.converters.DeleteCookieAttributes = webidl.dictionaryConverter([
@@ -31447,7 +31447,35 @@ var CliProbeSchema = external_exports.object({
   commands: external_exports.array(CliCommandSchema).min(1),
   diff: CliDiffOptionsSchema.default({ against: "base_branch", ignore_fields: [], normalize: [] })
 });
-var ProbeConfigSchema = external_exports.discriminatedUnion("type", [ApiProbeSchema, CliProbeSchema]);
+var GraphQLQuerySchema = external_exports.object({
+  query: external_exports.string().min(1),
+  variables: external_exports.record(external_exports.any()).optional(),
+  operationName: external_exports.string().optional()
+});
+var GraphQLProbeSchema = external_exports.object({
+  type: external_exports.literal("graphql"),
+  name: external_exports.string().min(1),
+  endpoint: external_exports.string().min(1),
+  queries: external_exports.array(GraphQLQuerySchema).min(1),
+  diff: DiffOptionsSchema.default({ against: "base_branch", ignore_fields: [] })
+});
+var DatabaseQuerySchema = external_exports.object({
+  sql: external_exports.string().min(1),
+  params: external_exports.array(external_exports.any()).optional()
+});
+var DatabaseProbeSchema = external_exports.object({
+  type: external_exports.literal("database"),
+  name: external_exports.string().min(1),
+  connection: external_exports.string().min(1),
+  queries: external_exports.array(DatabaseQuerySchema).min(1),
+  diff: DiffOptionsSchema.default({ against: "base_branch", ignore_fields: [] })
+});
+var ProbeConfigSchema = external_exports.discriminatedUnion("type", [
+  ApiProbeSchema,
+  CliProbeSchema,
+  GraphQLProbeSchema,
+  DatabaseProbeSchema
+]);
 var TargetSchema = external_exports.object({
   base_url: external_exports.string().min(1),
   wait_for: external_exports.object({
@@ -31869,10 +31897,198 @@ function runOnce(binary2, args, cwd, stdin) {
   });
 }
 
+// src/probes/GraphQLProbe.ts
+var GraphQLProbe = class {
+  async run(config, targetUrl, _workingDirectory) {
+    if (config.type !== "graphql") {
+      throw new Error(`GraphQLProbe received a non-graphql config: "${config.type}"`);
+    }
+    const graphqlConfig = config;
+    const start = Date.now();
+    const results = [];
+    try {
+      for (const queryConfig of graphqlConfig.queries) {
+        try {
+          const url = targetUrl + graphqlConfig.endpoint;
+          const body = {
+            query: queryConfig.query,
+            variables: queryConfig.variables || {},
+            operationName: queryConfig.operationName
+          };
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+          });
+          const responseData = await response.json();
+          results.push({
+            query: queryConfig.query.substring(0, 100),
+            operationName: queryConfig.operationName,
+            status: response.status,
+            data: responseData.data,
+            errors: responseData.errors
+          });
+        } catch (error) {
+          results.push({
+            query: queryConfig.query.substring(0, 100),
+            error: error.message
+          });
+        }
+      }
+      return {
+        probeName: graphqlConfig.name,
+        probeType: "graphql",
+        durationMs: Date.now() - start,
+        commandRuns: results.map((r) => ({
+          args: [r.query],
+          stdout: JSON.stringify(r),
+          stderr: r.error || "",
+          exitCode: r.error ? 1 : 0
+        }))
+      };
+    } catch (err) {
+      return {
+        probeName: graphqlConfig.name,
+        probeType: "graphql",
+        durationMs: Date.now() - start,
+        error: err.message
+      };
+    }
+  }
+};
+
+// src/probes/DatabaseProbe.ts
+var DatabaseProbe = class {
+  async run(config, _targetUrl, _workingDirectory) {
+    if (config.type !== "database") {
+      throw new Error(`DatabaseProbe received a non-database config: "${config.type}"`);
+    }
+    const dbConfig = config;
+    const start = Date.now();
+    const results = [];
+    try {
+      const dbType = detectDatabaseType(dbConfig.connection);
+      for (const queryConfig of dbConfig.queries) {
+        try {
+          const result = await executeQuery(dbType, dbConfig.connection, queryConfig.sql, queryConfig.params);
+          results.push({
+            sql: queryConfig.sql,
+            rowCount: result.rows.length,
+            rows: result.rows
+          });
+        } catch (error) {
+          results.push({
+            sql: queryConfig.sql,
+            error: error.message
+          });
+        }
+      }
+      return {
+        probeName: dbConfig.name,
+        probeType: "database",
+        durationMs: Date.now() - start,
+        commandRuns: results.map((r) => ({
+          args: [r.sql],
+          stdout: JSON.stringify({ rowCount: r.rowCount, rows: r.rows }),
+          stderr: r.error || "",
+          exitCode: r.error ? 1 : 0
+        }))
+      };
+    } catch (err) {
+      return {
+        probeName: dbConfig.name,
+        probeType: "database",
+        durationMs: Date.now() - start,
+        error: err.message
+      };
+    }
+  }
+};
+function detectDatabaseType(connectionString) {
+  if (connectionString.startsWith("postgres://") || connectionString.startsWith("postgresql://")) {
+    return "postgres";
+  }
+  if (connectionString.startsWith("mysql://")) {
+    return "mysql";
+  }
+  if (connectionString.startsWith("sqlite://") || connectionString.endsWith(".db") || connectionString.endsWith(".sqlite")) {
+    return "sqlite";
+  }
+  return "unknown";
+}
+async function executeQuery(dbType, connectionString, sql, params) {
+  switch (dbType) {
+    case "postgres":
+      return executePostgresQuery(connectionString, sql, params);
+    case "mysql":
+      return executeMysqlQuery(connectionString, sql, params);
+    case "sqlite":
+      return executeSqliteQuery(connectionString, sql, params);
+    default:
+      throw new Error(`Unsupported database type: ${dbType}`);
+  }
+}
+async function executePostgresQuery(connectionString, sql, params) {
+  try {
+    const pg = await import("pg");
+    const { Client } = pg.default || pg;
+    const client = new Client({ connectionString });
+    await client.connect();
+    const result = await client.query(sql, params);
+    await client.end();
+    return { rows: result.rows };
+  } catch (error) {
+    if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
+      throw new Error('PostgreSQL support requires the "pg" package. Install with: npm install pg');
+    }
+    throw error;
+  }
+}
+async function executeMysqlQuery(connectionString, sql, params) {
+  try {
+    const mysql = await import("mysql2/promise");
+    const mysqlLib = mysql.default || mysql;
+    const connection = await mysqlLib.createConnection(connectionString);
+    const [rows] = await connection.execute(sql, params);
+    await connection.end();
+    return { rows };
+  } catch (error) {
+    if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
+      throw new Error('MySQL support requires the "mysql2" package. Install with: npm install mysql2');
+    }
+    throw error;
+  }
+}
+async function executeSqliteQuery(connectionString, sql, params) {
+  try {
+    const sqlite3Module = await import("sqlite3");
+    const sqliteModule = await import("sqlite");
+    const sqlite3 = sqlite3Module.default || sqlite3Module;
+    const { open } = sqliteModule;
+    const dbPath = connectionString.replace("sqlite://", "");
+    const db = await open({
+      filename: dbPath,
+      driver: sqlite3.Database
+    });
+    const rows = await db.all(sql, params);
+    await db.close();
+    return { rows };
+  } catch (error) {
+    if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
+      throw new Error('SQLite support requires the "sqlite" and "sqlite3" packages. Install with: npm install sqlite sqlite3');
+    }
+    throw error;
+  }
+}
+
 // src/probes/registry.ts
 var probeRegistry = {
   api: new ApiProbe(),
-  cli: new CliProbe()
+  cli: new CliProbe(),
+  graphql: new GraphQLProbe(),
+  database: new DatabaseProbe()
 };
 function resolveProbe(type2) {
   const probe = probeRegistry[type2];
@@ -31996,54 +32212,111 @@ function scrubSecrets(value) {
 
 // src/render/prComment.ts
 var BADGE_STYLE = {
-  pass: { label: "pass", color: "brightgreen" },
-  diff_detected: { label: "diff detected", color: "yellow" },
-  error: { label: "error", color: "red" }
+  pass: { label: "pass", color: "brightgreen", emoji: "\u2713" },
+  diff_detected: { label: "diff detected", color: "yellow", emoji: "\u26A0" },
+  error: { label: "error", color: "red", emoji: "\u2717" }
 };
 function statusBadge(status) {
-  const { label, color } = BADGE_STYLE[status];
+  const { label, color, emoji } = BADGE_STYLE[status];
   const encodedLabel = encodeURIComponent(label);
-  return `![${label}](https://img.shields.io/badge/status-${encodedLabel}-${color})`;
+  return `${emoji} ![${label}](https://img.shields.io/badge/status-${encodedLabel}-${color})`;
 }
 function renderPrComment(results, reportUrl) {
   const lines = [];
-  lines.push(`### Backline results \u2014 ${results.length} probe${results.length === 1 ? "" : "s"}`);
+  const passCount = results.filter((r) => r.status === "pass").length;
+  const diffCount = results.filter((r) => r.status === "diff_detected").length;
+  const errorCount = results.filter((r) => r.status === "error").length;
+  lines.push(`### Backline Results`);
   lines.push("");
-  lines.push("| Probe | Status |");
-  lines.push("|---|---|");
+  if (diffCount > 0 || errorCount > 0) {
+    lines.push(`<details open>`);
+    lines.push(`<summary><strong>${diffCount + errorCount} issue${diffCount + errorCount === 1 ? "" : "s"} detected</strong> (${passCount} passing)</summary>`);
+    lines.push("");
+  }
+  lines.push("| Probe | Status | Changes |");
+  lines.push("|---|---|---|");
   for (const result of results) {
-    lines.push(`| ${result.probeName} | ${statusBadge(result.status)} |`);
+    const changeCount = result.status === "diff_detected" ? result.changedPaths.length : 0;
+    const changeText = changeCount > 0 ? `${changeCount} field${changeCount === 1 ? "" : "s"}` : "\u2014";
+    lines.push(`| ${result.probeName} | ${statusBadge(result.status)} | ${changeText} |`);
+  }
+  if (diffCount > 0 || errorCount > 0) {
+    lines.push("");
+    lines.push(`</details>`);
   }
   lines.push("");
   if (reportUrl) {
-    lines.push(`[View full diff report](${reportUrl})`);
+    lines.push(`[\u{1F4CA} View detailed diff report](${reportUrl})`);
   }
   return lines.join("\n");
 }
 function renderJobSummary(results) {
   const lines = [];
-  lines.push(`# Backline \u2014 full diff report`);
+  lines.push(`# Backline \u2014 Detailed Diff Report`);
+  lines.push("");
+  const summary = getSummary(results);
+  lines.push(`**${summary.passed}** passed \xB7 **${summary.changed}** changed \xB7 **${summary.failed}** failed`);
   lines.push("");
   for (const result of results) {
-    lines.push(`## ${result.probeName} \u2014 ${result.status.replace("_", " ")}`);
+    const { emoji } = BADGE_STYLE[result.status];
+    lines.push(`<details${result.status !== "pass" ? " open" : ""}>`);
+    lines.push(`<summary><h2>${emoji} ${result.probeName}</h2></summary>`);
     lines.push("");
     if (result.status === "pass") {
-      lines.push("No differences detected.");
+      lines.push("\u2713 No differences detected.");
     } else if (result.status === "error") {
-      lines.push(`Failed to run: ${result.error}`);
+      lines.push("```");
+      lines.push(`Error: ${result.error}`);
+      lines.push("```");
     } else {
-      lines.push("| Field | Base | Head |");
-      lines.push("|---|---|---|");
+      lines.push("### Changed Fields");
+      lines.push("");
       for (const change of result.changedPaths) {
-        lines.push(`| \`${change.path}\` | ${stringify(change.before)} | ${stringify(change.after)} |`);
+        lines.push(`#### \`${change.path}\``);
+        lines.push("");
+        lines.push("<table>");
+        lines.push("<tr><th>Base Branch</th><th>PR Branch</th></tr>");
+        lines.push("<tr>");
+        lines.push("<td>");
+        lines.push("");
+        lines.push("```json");
+        lines.push(formatValue(change.before));
+        lines.push("```");
+        lines.push("");
+        lines.push("</td>");
+        lines.push("<td>");
+        lines.push("");
+        lines.push("```json");
+        lines.push(formatValue(change.after));
+        lines.push("```");
+        lines.push("");
+        lines.push("</td>");
+        lines.push("</tr>");
+        lines.push("</table>");
+        lines.push("");
       }
     }
+    lines.push("</details>");
     lines.push("");
   }
   return lines.join("\n");
 }
-function stringify(value) {
-  return JSON.stringify(value);
+function getSummary(results) {
+  return {
+    passed: results.filter((r) => r.status === "pass").length,
+    changed: results.filter((r) => r.status === "diff_detected").length,
+    failed: results.filter((r) => r.status === "error").length
+  };
+}
+function formatValue(value) {
+  if (typeof value === "string") {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 // src/orchestrator.ts

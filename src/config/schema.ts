@@ -82,6 +82,39 @@ const CliProbeSchema = z.object({
 });
 
 /**
+ * A `graphql` probe: runs GraphQL queries against the service.
+ */
+const GraphQLQuerySchema = z.object({
+  query: z.string().min(1),
+  variables: z.record(z.any()).optional(),
+  operationName: z.string().optional(),
+});
+
+const GraphQLProbeSchema = z.object({
+  type: z.literal("graphql"),
+  name: z.string().min(1),
+  endpoint: z.string().min(1),
+  queries: z.array(GraphQLQuerySchema).min(1),
+  diff: DiffOptionsSchema.default({ against: "base_branch", ignore_fields: [] }),
+});
+
+/**
+ * A `database` probe: runs SQL queries against a database.
+ */
+const DatabaseQuerySchema = z.object({
+  sql: z.string().min(1),
+  params: z.array(z.any()).optional(),
+});
+
+const DatabaseProbeSchema = z.object({
+  type: z.literal("database"),
+  name: z.string().min(1),
+  connection: z.string().min(1),
+  queries: z.array(DatabaseQuerySchema).min(1),
+  diff: DiffOptionsSchema.default({ against: "base_branch", ignore_fields: [] }),
+});
+
+/**
  * Discriminated union on `type`.
  *
  * @remarks
@@ -90,7 +123,12 @@ const CliProbeSchema = z.object({
  * {@link ApiProbeConfig} and {@link CliProbeConfig} wherever a
  * `ProbeConfig`'s `.type` field is checked.
  */
-const ProbeConfigSchema = z.discriminatedUnion("type", [ApiProbeSchema, CliProbeSchema]);
+const ProbeConfigSchema = z.discriminatedUnion("type", [
+  ApiProbeSchema,
+  CliProbeSchema,
+  GraphQLProbeSchema,
+  DatabaseProbeSchema,
+]);
 
 /**
  * A cross-repo dependency this PR needs running alongside it.
@@ -169,6 +207,12 @@ export type ApiProbeConfig = z.infer<typeof ApiProbeSchema>;
 
 /** TypeScript type for a validated `cli`-type probe, inferred from {@link CliProbeSchema}. */
 export type CliProbeConfig = z.infer<typeof CliProbeSchema>;
+
+/** TypeScript type for a validated `graphql`-type probe, inferred from {@link GraphQLProbeSchema}. */
+export type GraphQLProbeConfig = z.infer<typeof GraphQLProbeSchema>;
+
+/** TypeScript type for a validated `database`-type probe, inferred from {@link DatabaseProbeSchema}. */
+export type DatabaseProbeConfig = z.infer<typeof DatabaseProbeSchema>;
 
 /** TypeScript type for any validated probe, inferred from {@link ProbeConfigSchema}. */
 export type ProbeConfig = z.infer<typeof ProbeConfigSchema>;

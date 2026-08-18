@@ -1,6 +1,6 @@
 {
   "name": "backline",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Runtime behavior previews for pull requests - compare API and CLI outputs between PR and base branch",
   "license": "MIT",
   "type": "module",

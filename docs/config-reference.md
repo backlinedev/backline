@@ -236,6 +236,132 @@ ignore_fields:
   - "requests[*].response.body.user.id"
 ```
 
+## GraphQL Probe Type
+
+Tests GraphQL APIs.
+
+```yaml
+- type: graphql
+  name: "user queries"
+  endpoint: /graphql
+  queries:
+    - query: "{ user(id: 1) { name email } }"
+      variables: {}
+      operationName: "GetUser"
+  diff:
+    against: base_branch
+    ignore_fields:
+      - "queries[*].data.timestamp"
+```
+
+### `type`
+
+Must be `"graphql"`.
+
+### `name`
+
+**Required.** Unique name for this probe.
+
+### `endpoint`
+
+**Required.** GraphQL endpoint path (relative to `target.base_url`).
+
+### `queries`
+
+**Required.** Array of GraphQL queries to execute.
+
+#### Query Object
+
+```yaml
+- query: "{ user(id: 1) { name } }"
+  variables: { "userId": 1 }
+  operationName: "GetUser"
+```
+
+##### `query`
+
+GraphQL query string. Supports queries and mutations.
+
+##### `variables`
+
+**Optional.** Variables to pass to the query.
+
+##### `operationName`
+
+**Optional.** Operation name (useful when query contains multiple operations).
+
+### `diff`
+
+Same as API probes. Use `ignore_fields` for non-deterministic data like timestamps.
+
+## Database Probe Type
+
+Tests databases directly via SQL queries.
+
+```yaml
+- type: database
+  name: "user count check"
+  connection: $DATABASE_URL
+  queries:
+    - sql: "SELECT COUNT(*) as count FROM users WHERE active = true"
+      params: []
+  diff:
+    against: base_branch
+    ignore_fields:
+      - "queries[*].rows[*].created_at"
+```
+
+### `type`
+
+Must be `"database"`.
+
+### `name`
+
+**Required.** Unique name for this probe.
+
+### `connection`
+
+**Required.** Database connection string. Supports:
+- PostgreSQL: `postgresql://user:pass@host:5432/db`
+- MySQL: `mysql://user:pass@host:3306/db`
+- SQLite: `sqlite://path/to/db.sqlite` or `/path/to/db.sqlite`
+
+**Security:** Always use environment variables:
+```yaml
+connection: $DATABASE_URL
+```
+
+### `queries`
+
+**Required.** Array of SQL queries to execute.
+
+#### Query Object
+
+```yaml
+- sql: "SELECT * FROM users WHERE id = ?"
+  params: [1]
+```
+
+##### `sql`
+
+SQL query string.
+
+##### `params`
+
+**Optional.** Parameters for parameterized queries (prevents SQL injection).
+
+### `diff`
+
+Same as API probes.
+
+### Database Driver Requirements
+
+Database probes require additional npm packages:
+
+- **PostgreSQL:** `npm install pg`
+- **MySQL:** `npm install mysql2`
+- **SQLite:** `npm install sqlite sqlite3`
+
 ## CLI Probe Type
 
 Tests command-line tools.

@@ -1,4 +1,4 @@
-name: "Backline"
+name: "Backline - Runtime Diff"
 description: "Runtime behavior previews for pull requests - deploys PR and base branch, runs probes, diffs actual behavior"
 branding:
   icon: "git-pull-request"

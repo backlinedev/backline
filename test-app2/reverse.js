@@ -10,5 +10,11 @@ let input = "";
 process.stdin.on("data", (chunk) => (input += chunk));
 process.stdin.on("end", () => {
   const trimmed = input.trim();
-  console.log(JSON.stringify({ original: trimmed, reversed: trimmed.split("").reverse().join("") }));
+  console.log(
+    JSON.stringify({
+      original: trimmed,
+      reversed: trimmed.split("").reverse().join(""),
+      uppercased: trimmed.toUpperCase(),
+    }),
+  );
 });

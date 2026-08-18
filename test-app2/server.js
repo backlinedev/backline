@@ -7,7 +7,7 @@ const USERS = [
     id: 1,
     name: "Ada",
     profile: {
-      settings: { theme: "dark", notifications: true },
+      settings: { theme: "midnight", notifications: true },
       roles: ["admin", "editor"],
     },
   },
@@ -16,7 +16,7 @@ const USERS = [
     name: "Grace",
     profile: {
       settings: { theme: "light", notifications: false },
-      roles: ["viewer"],
+      roles: ["viewer", "reviewer"],
     },
   },
 ];

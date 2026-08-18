@@ -16,9 +16,9 @@ app.get('/health', (req, res) => {
 // Get all users
 app.get('/api/users', (req, res) => {
   const users = [
-    { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'admin' },
-    { id: 2, name: 'Bob Smith', email: 'bob@example.com', role: 'user' },
-    { id: 3, name: 'Carol White', email: 'carol@example.com', role: 'user' }
+    { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', status: 'active' },
+    { id: 2, name: 'Bob Smith', email: 'bob@example.com', role: 'user', status: 'active' },
+    { id: 3, name: 'Carol White', email: 'carol@example.com', role: 'user', status: 'inactive' }
   ];
 
   res.json({
@@ -32,9 +32,9 @@ app.get('/api/users', (req, res) => {
 app.get('/api/users/:id', (req, res) => {
   const userId = parseInt(req.params.id);
   const users = [
-    { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'admin' },
-    { id: 2, name: 'Bob Smith', email: 'bob@example.com', role: 'user' },
-    { id: 3, name: 'Carol White', email: 'carol@example.com', role: 'user' }
+    { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', status: 'active' },
+    { id: 2, name: 'Bob Smith', email: 'bob@example.com', role: 'user', status: 'active' },
+    { id: 3, name: 'Carol White', email: 'carol@example.com', role: 'user', status: 'inactive' }
   ];
 
   const user = users.find(u => u.id === userId);
@@ -67,7 +67,8 @@ app.post('/api/users', (req, res) => {
     id: Math.floor(Math.random() * 10000),
     name,
     email,
-    role: role || 'user'
+    role: role || 'user',
+    status: 'active'
   };
 
   res.status(201).json({

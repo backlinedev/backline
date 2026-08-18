@@ -2,7 +2,7 @@ services:
   api:
     build: ./examples/01-express-api
     ports:
-      - "3000:3000"
+      - "${BACKLINE_PORT:-3000}:3000"
     environment:
       - PORT=3000
       

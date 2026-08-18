@@ -1,6 +1,8 @@
 services:
-  app:
-    build: ./test-app2
+  api:
+    build: ./examples/01-express-api
     ports:
-      - "${BACKLINE_PORT}:4000"
+      - "3000:3000"
+    environment:
+      - PORT=3000
       

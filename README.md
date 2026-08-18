@@ -2,8 +2,8 @@
 
 **Runtime behavior previews for pull requests.**
 
-[![npm version](https://img.shields.io/npm/v/@backlinedev/backline?color=blue)](https://www.npmjs.com/package/@backlinedev/backline)
-[![npm downloads](https://img.shields.io/npm/dm/@backlinedev/backline)](https://www.npmjs.com/package/@backlinedev/backline)
+[![npm version](https://img.shields.io/npm/v/@backlinedev/backline?color=blue&logo=npm)](https://www.npmjs.com/package/@backlinedev/backline)
+[![npm downloads](https://img.shields.io/npm/dm/@backlinedev/backline?logo=npm)](https://www.npmjs.com/package/@backlinedev/backline)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-informational)](package.json)
 

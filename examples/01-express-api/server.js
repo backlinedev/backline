@@ -23,7 +23,8 @@ app.get('/api/users', (req, res) => {
 
   res.json({
     users,
-    total: users.length,
+    count: users.length,
+    page: 1,
     timestamp: Date.now()
   });
 });
@@ -41,12 +42,14 @@ app.get('/api/users/:id', (req, res) => {
 
   if (user) {
     res.json({
-      user,
+      data: user,
+      success: true,
       timestamp: Date.now()
     });
   } else {
     res.status(404).json({
       error: 'User not found',
+      success: false,
       timestamp: Date.now()
     });
   }
@@ -73,8 +76,9 @@ app.post('/api/users', (req, res) => {
   };
 
   res.status(201).json({
-    user: newUser,
+    data: newUser,
     message: 'User created successfully',
+    success: true,
     timestamp: Date.now()
   });
 });

@@ -1,0 +1,5 @@
+name,email,role
+Alice Johnson,alice@example.com,admin
+Bob Smith,bob@example.com,user
+Carol White,carol@example.com,user
+David Brown,david@example.com,moderator

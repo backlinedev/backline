@@ -1,0 +1,54 @@
+version: 1
+
+target:
+  # CLI tools don't have a base_url or health check
+  # Backline will just ensure the container is running
+  adapter: compose
+
+probes:
+  - type: cli
+    name: "version and help"
+    binary: ./dist/cli.js
+    commands:
+      - args: ["--version"]
+      - args: ["--help"]
+    diff:
+      against: base_branch
+      normalize:
+        - strip_ansi
+
+  - type: cli
+    name: "analyze command"
+    binary: ./dist/cli.js
+    commands:
+      - args: ["analyze", "--file", "fixtures/sample.csv"]
+      - args: ["analyze", "--file", "fixtures/sample.csv", "--stats"]
+    diff:
+      against: base_branch
+      normalize:
+        - strip_ansi
+
+  - type: cli
+    name: "transform command"
+    binary: ./dist/cli.js
+    commands:
+      - args: ["transform", "--input", "fixtures/input.txt", "--type", "uppercase"]
+      - args: ["transform", "--input", "fixtures/input.txt", "--type", "lowercase"]
+      - args: ["transform", "--input", "fixtures/input.txt", "--type", "reverse"]
+    diff:
+      against: base_branch
+      normalize:
+        - strip_ansi
+
+  - type: cli
+    name: "info command"
+    binary: ./dist/cli.js
+    commands:
+      - args: ["info"]
+    diff:
+      against: base_branch
+      normalize:
+        - strip_ansi
+      ignore_fields:
+        - "uptime"
+        - "cwd"

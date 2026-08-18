@@ -1,0 +1,51 @@
+version: 1
+
+target:
+  base_url: "http://localhost:3000"
+  wait_for:
+    path: /health
+    timeout_seconds: 30
+  adapter: compose
+
+probes:
+  - type: api
+    name: "health check"
+    requests:
+      - method: GET
+        path: /health
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"
+
+  - type: api
+    name: "user endpoints"
+    requests:
+      - method: GET
+        path: /api/users
+      - method: GET
+        path: /api/users/1
+      - method: POST
+        path: /api/users
+        body:
+          name: "Test User"
+          email: "test@example.com"
+          role: "user"
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"
+        - "requests[*].response.body.user.id"
+
+  - type: api
+    name: "search endpoint"
+    requests:
+      - method: POST
+        path: /api/search
+        body:
+          query: "express"
+          limit: 5
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"

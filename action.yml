@@ -1,5 +1,8 @@
 name: "Backline"
-description: "Non-UI PR previews: diffs API and CLI behavior between your PR branch and base branch."
+description: "Runtime behavior previews for pull requests - deploys PR and base branch, runs probes, diffs actual behavior"
+branding:
+  icon: "git-pull-request"
+  color: "blue"
 inputs:
   config:
     description: "Path to the .backline.yml config file"

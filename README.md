@@ -124,7 +124,248 @@ npm run build
 
 A full architectural writeup, including the interface contracts each component satisfies, is in `backline-architecture.md`.
 
-## Current limitations
+## Comparison to Alternatives
+
+| Feature | Backline | Preview.dev | Chromatic | PullPreview |
+|---------|----------|-------------|-----------|-------------|
+| **Tests APIs** | Yes | Yes | No | No |
+| **Tests CLIs** | Yes | No | No | No |
+| **Tests UI** | No | No | Yes | Yes |
+| **Zero infrastructure** | Yes | No | No | No |
+| **Requires account** | No | Yes | Yes | Yes |
+| **Self-hosted** | Yes | No | No | Yes |
+| **Framework-agnostic** | Yes | Yes | No (React only) | Yes |
+| **Compares runtime behavior** | Yes | Yes | Yes (visual) | No (deploy only) |
+| **Open source** | Yes | No | No | No |
+
+**When to use Backline:**
+- You have APIs or CLI tools (not browser UIs)
+- You want zero vendor lock-in
+- You need to test in your own CI
+- You want to catch dependency upgrade regressions
+
+**When not to use Backline:**
+- You need visual regression testing for UIs → use Chromatic or Percy
+- You just need preview URLs (not behavior diffs) → use PullPreview or Vercel
+- You test browser interactions → use Playwright or Cypress
+
+## FAQ
+
+### How is this different from integration tests?
+
+Integration tests check if your code works. Backline checks if it works **differently** than before.
+
+**Example:**
+```javascript
+// Your test
+expect(response.status).toBe(200); // Passes
+
+// But the response changed from this on main:
+{ users: [...], total: 10 }
+
+// To this on your PR:
+{ users: [...], count: 10 }  // Field renamed!
+
+// Your test still passes, but Backline catches this breaking change.
+```
+
+### Does Backline replace my tests?
+
+No. Backline complements your tests:
+- **Unit/integration tests** → Verify correctness
+- **Backline** → Verify behavior hasn't unexpectedly changed
+
+Use both for comprehensive coverage.
+
+### How fast is it?
+
+**First run:** 2-5 minutes (builds and deploys both branches)  
+**Subsequent runs:** 1-3 minutes (base branch cached)
+
+Backline caches base-branch results by commit SHA, so only the PR branch needs full deployment on subsequent runs.
+
+### What about secrets?
+
+Backline never stores secrets. Secrets pass through from CI exactly as they would for any other step:
+
+```yaml
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+```
+
+Results are scrubbed for leaked credentials before posting.
+
+### Can I use this with monorepos?
+
+Yes! Place `.backline.yml` in each package directory, or use a single config that tests multiple services.
+
+### Does this work with databases?
+
+Yes. Your `docker-compose.yml` can include a database service. Backline tests against the full stack.
+
+### What if my API requires authentication?
+
+Pass auth tokens in request headers:
+
+```yaml
+requests:
+  - method: GET
+    path: /api/profile
+    headers:
+      Authorization: "Bearer ${{ secrets.TEST_TOKEN }}"
+```
+
+### Can I test staging/production instead of local deploys?
+
+Yes, with the webhook adapter:
+
+```yaml
+target:
+  adapter: webhook
+```
+
+Point it at your existing deploy pipeline.
+
+### How do I ignore fields that always change?
+
+Use `ignore_fields` with JSON path syntax:
+
+```yaml
+diff:
+  ignore_fields:
+    - "requests[*].response.body.timestamp"
+    - "requests[*].response.body.request_id"
+```
+
+See [docs/config-reference.md](docs/config-reference.md) for full syntax.
+
+## Troubleshooting
+
+### "Docker not found"
+
+**Cause:** Docker is not installed or not running.
+
+**Fix:**
+```bash
+# Install Docker
+# https://docs.docker.com/get-docker/
+
+# Start Docker
+docker --version  # Should print version
+```
+
+### "Health check timeout"
+
+**Cause:** Your service is taking longer than `timeout_seconds` to become healthy, or the health endpoint is broken.
+
+**Fix:**
+1. Test health endpoint manually:
+   ```bash
+   docker-compose up
+   curl http://localhost:3000/health
+   ```
+
+2. Increase timeout in `.backline.yml`:
+   ```yaml
+   wait_for:
+     timeout_seconds: 60
+   ```
+
+3. Check Docker logs:
+   ```bash
+   docker-compose logs
+   ```
+
+### "Binary not found" (CLI probes)
+
+**Cause:** The CLI binary doesn't exist at the specified path.
+
+**Fix:**
+1. Make sure you build before testing:
+   ```yaml
+   # In GitHub Actions
+   - run: npm run build
+   - uses: backlinedev/backline@v1
+   ```
+
+2. Verify the path is correct:
+   ```yaml
+   binary: ./dist/cli.js  # Relative to container working directory
+   ```
+
+3. Make it executable:
+   ```bash
+   chmod +x dist/cli.js
+   ```
+
+### "Diff shows everything as changed"
+
+**Cause:** You forgot to ignore timestamp or ID fields that change on every run.
+
+**Fix:**
+```yaml
+ignore_fields:
+  - "requests[*].response.body.timestamp"
+  - "requests[*].response.body.created_at"
+  - "requests[*].response.body.id"
+```
+
+### "Base branch results not found"
+
+**Cause:** First run on this base branch commit. Backline needs to build and cache the base branch results.
+
+**Fix:** This is normal. Wait for the run to complete. Subsequent PRs will be faster.
+
+### "Port already in use"
+
+**Cause:** Another process is using the port.
+
+**Fix:**
+1. Find and kill the process:
+   ```bash
+   lsof -ti:3000 | xargs kill
+   ```
+
+2. Or change the port in `docker-compose.yml`:
+   ```yaml
+   ports:
+     - "3001:3000"
+   ```
+
+   And update `.backline.yml`:
+   ```yaml
+   base_url: "http://localhost:3001"
+   ```
+
+### "Permission denied" (GitHub Actions)
+
+**Cause:** Missing write permission for PR comments.
+
+**Fix:**
+```yaml
+permissions:
+  contents: read
+  pull-requests: write  # Required for posting comments
+```
+
+### "Fetch depth 0 required"
+
+**Cause:** Backline needs full git history to access both branches.
+
+**Fix:**
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0  # Required
+```
+
+### Need more help?
+
+- **Documentation:** [docs/config-reference.md](docs/config-reference.md)
+- **Examples:** Browse the `examples/` directory
+- **Issues:** Report bugs at https://github.com/backlinedev/backline/issues
+
+## Current Limitations
 
 This is an early, actively developed project. The following are known gaps, not hidden ones:
 

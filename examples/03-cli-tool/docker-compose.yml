@@ -1,0 +1,7 @@
+version: '3.8'
+
+services:
+  cli:
+    build: .
+    volumes:
+      - ./fixtures:/app/fixtures:ro

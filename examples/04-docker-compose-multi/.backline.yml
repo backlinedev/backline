@@ -1,0 +1,76 @@
+version: 1
+
+target:
+  base_url: "http://localhost:3000"
+  wait_for:
+    path: /health
+    timeout_seconds: 45
+  adapter: compose
+
+probes:
+  - type: api
+    name: "health check"
+    requests:
+      - method: GET
+        path: /health
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"
+
+  - type: api
+    name: "job submission and retrieval"
+    requests:
+      - method: POST
+        path: /api/jobs
+        body:
+          type: "uppercase"
+          data: "hello world"
+      - method: GET
+        path: /api/jobs
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"
+        - "requests[*].response.body.job.id"
+        - "requests[*].response.body.job.createdAt"
+        - "requests[*].response.body.jobs[*].id"
+        - "requests[*].response.body.jobs[*].createdAt"
+
+  - type: api
+    name: "different job types"
+    requests:
+      - method: POST
+        path: /api/jobs
+        body:
+          type: "lowercase"
+          data: "HELLO WORLD"
+      - method: POST
+        path: /api/jobs
+        body:
+          type: "reverse"
+          data: "hello"
+      - method: POST
+        path: /api/jobs
+        body:
+          type: "count"
+          data: "the quick brown fox"
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"
+        - "requests[*].response.body.job.id"
+        - "requests[*].response.body.job.createdAt"
+
+  - type: api
+    name: "error handling"
+    requests:
+      - method: POST
+        path: /api/jobs
+        body: {}
+      - method: GET
+        path: /api/jobs/nonexistent
+    diff:
+      against: base_branch
+      ignore_fields:
+        - "requests[*].response.body.timestamp"

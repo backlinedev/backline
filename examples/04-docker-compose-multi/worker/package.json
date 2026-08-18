@@ -1,0 +1,12 @@
+{
+  "name": "worker-service",
+  "version": "1.0.0",
+  "description": "Background worker for job processing",
+  "main": "worker.js",
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "dependencies": {
+    "redis": "^4.6.13"
+  }
+}

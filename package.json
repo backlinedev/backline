@@ -1,13 +1,43 @@
 {
   "name": "backline",
   "version": "0.1.0",
-  "description": "PR previews for APIs and CLIs",
+  "description": "Runtime behavior previews for pull requests - compare API and CLI outputs between PR and base branch",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "backline": "dist/cli.js"
   },
+  "keywords": [
+    "github-action",
+    "pr-preview",
+    "api-testing",
+    "cli-testing",
+    "behavior-diff",
+    "runtime-testing",
+    "continuous-integration",
+    "regression-testing",
+    "pull-request",
+    "docker-compose"
+  ],
+  "author": "Ummara Ali Syeda <syeda.umm@northeastern.edu>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/backlinedev/backline.git"
+  },
+  "homepage": "https://github.com/backlinedev/backline#readme",
+  "bugs": {
+    "url": "https://github.com/backlinedev/backline/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "action.yml"
+  ],
   "scripts": {
     "build": "tsc --noEmit && esbuild src/index.ts --bundle --platform=node --target=node24 --format=esm --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" --outfile=dist/index.js && esbuild src/cli.ts --bundle --platform=node --target=node24 --format=esm --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" --outfile=dist/cli.js",
     "test": "vitest run",

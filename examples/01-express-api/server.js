@@ -16,9 +16,9 @@ app.get('/health', (req, res) => {
 // Get all users
 app.get('/api/users', (req, res) => {
   const users = [
-    { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', status: 'active' },
-    { id: 2, name: 'Bob Smith', email: 'bob@example.com', role: 'user', status: 'active' },
-    { id: 3, name: 'Carol White', email: 'carol@example.com', role: 'user', status: 'inactive' }
+    { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', status: 'active', department: 'Engineering' },
+    { id: 2, name: 'Bob Smith', email: 'bob@example.com', role: 'user', status: 'active', department: 'Sales' },
+    { id: 3, name: 'Carol White', email: 'carol@example.com', role: 'user', status: 'inactive', department: 'Marketing' }
   ];
 
   res.json({
@@ -32,9 +32,9 @@ app.get('/api/users', (req, res) => {
 app.get('/api/users/:id', (req, res) => {
   const userId = parseInt(req.params.id);
   const users = [
-    { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', status: 'active' },
-    { id: 2, name: 'Bob Smith', email: 'bob@example.com', role: 'user', status: 'active' },
-    { id: 3, name: 'Carol White', email: 'carol@example.com', role: 'user', status: 'inactive' }
+    { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', status: 'active', department: 'Engineering' },
+    { id: 2, name: 'Bob Smith', email: 'bob@example.com', role: 'user', status: 'active', department: 'Sales' },
+    { id: 3, name: 'Carol White', email: 'carol@example.com', role: 'user', status: 'inactive', department: 'Marketing' }
   ];
 
   const user = users.find(u => u.id === userId);
@@ -68,7 +68,8 @@ app.post('/api/users', (req, res) => {
     name,
     email,
     role: role || 'user',
-    status: 'active'
+    status: 'active',
+    department: 'General'
   };
 
   res.status(201).json({
